@@ -102,6 +102,15 @@ class AgentCoreTests(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
         self.assertEqual(turn.query, "MCP")
 
+    def test_natural_language_mcp_query_is_ready(self) -> None:
+        turn = AgentCore().prepare("¿Qué experiencia tiene Israel con MCP?")
+
+        self.assertEqual(turn.status, "ready")
+        self.assertIn("mcp", {item.entity_id for item in turn.evidence})
+        scores = [item.score for item in turn.evidence]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        self.assertEqual(turn.query, "¿Qué experiencia tiene Israel con MCP?")
+
     def test_prepare_enforces_public_visibility(self) -> None:
         profile_service = RecordingProfileService(self.fixture_path)
         turn = AgentCore(profile_service=profile_service).prepare("public")

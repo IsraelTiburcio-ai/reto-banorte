@@ -104,6 +104,37 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertIn("mcp", result_ids)
         self.assertIn("generative-ai", result_ids)
 
+    def test_mcp_search_keeps_existing_top_ranking(self) -> None:
+        results = self.service.search("MCP")
+        self.assertEqual(
+            [result.entity_id for result in results[:3]],
+            ["mcp", "mcp-analytics", "mcp-order-status"],
+        )
+
+    def test_natural_language_mcp_query_finds_public_mcp_evidence(self) -> None:
+        result_ids = self.ids_for("¿Qué experiencia tiene Israel con MCP?")
+        self.assertIn("mcp", result_ids)
+        self.assertIn("mcp-analytics", result_ids)
+        self.assertIn("mcp-order-status", result_ids)
+
+    def test_punctuation_falls_back_to_significant_terms(self) -> None:
+        result_ids = self.ids_for("MCP?!,.")
+        self.assertIn("mcp", result_ids)
+
+    def test_accented_natural_language_query_finds_python(self) -> None:
+        result_ids = self.ids_for("¿Qué experiencia tiene con Python?")
+        self.assertIn("python", result_ids)
+
+    def test_natural_language_python_and_fastapi_query_is_relevant(self) -> None:
+        result_ids = self.ids_for("¿Qué experiencia tiene con Python y FastAPI?")
+        self.assertIn("python", result_ids)
+        self.assertIn("backend", result_ids)
+
+    def test_stopword_only_query_returns_no_results(self) -> None:
+        self.assertEqual(
+            self.service.search("¿Qué experiencia tiene Israel con y sobre?"), []
+        )
+
     def test_swift_search_finds_skills_experience_and_related_projects(self) -> None:
         result_ids = self.ids_for("Swift")
         self.assertIn("swift", result_ids)
