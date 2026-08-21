@@ -6,9 +6,9 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 5 — Open Responses compatibility
+Phase 6 — LLM integration
 
-La Phase 5 agrega un adaptador síncrono y textual para un subset estricto de Open Responses. El adaptador valida el transporte, extrae el último mensaje `user`, llama a `AgentCore` y serializa una respuesta determinista. No hay LLM todavía.
+La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
 
 Endpoints actuales:
 
@@ -16,11 +16,12 @@ Endpoints actuales:
 - `POST /agent/prepare`
 - `POST /v1/responses`
 
-`POST /agent/prepare` es un contrato interno. `POST /v1/responses` es un contrato interoperable parcial: Phase 5 no afirma full conformance con Open Responses.
+`POST /agent/prepare` es un contrato interno. `POST /v1/responses` es un contrato interoperable parcial: Phase 5/6 no afirma full conformance con Open Responses.
 
 ## Arquitectura inicial
 
 - `api`: interfaz HTTP delgada, schemas, adaptador Open Responses y serialización.
+- `llm`: contratos provider-neutral, prompts de aplicación y proveedor OpenAI.
 - `agent`: política de comportamiento y orquestación provider-neutral del agente.
 - `models`: modelos internos y contratos provider-neutral.
 - `services`: lógica reutilizable e integraciones externas.
@@ -32,11 +33,11 @@ Endpoints actuales:
 
 Flujo actual:
 
-`POST /v1/responses -> Open Responses adapter -> AgentCore -> ProfileService -> data/profile.json`
+`POST /v1/responses -> Open Responses adapter -> AgentCore -> ProfileService -> public evidence -> LLM generator -> OpenAI Responses API`
 
 `ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
 
-El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text`, replay estructural sin estado y un formateador determinista temporal. Rechaza `system`/`developer`, streaming, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto grounded solo cuando existe evidencia; sin evidencia conserva el fallback fijo y evita la llamada al proveedor. Rechaza `system`/`developer`, streaming, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
 
 ## Open Responses subset
 
@@ -46,7 +47,20 @@ curl -X POST http://localhost:8000/v1/responses \
   -d '{"model":"banorte-cv-agent","input":"¿Qué experiencia tiene Israel con MCP?"}'
 ```
 
-El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no usa un LLM, no mantiene conversaciones y no acepta `previous_response_id`, `store`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
+El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no mantiene conversaciones y no acepta `previous_response_id`, `store`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
+
+## Phase 6 — LLM integration
+
+Configura el proveedor únicamente mediante variables de entorno:
+
+```bash
+export OPENAI_API_KEY='...'
+export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
+```
+
+`model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
+
+El generador usa la Responses API oficial con `store=false`, sin tools, streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
 
 ## Ejecución local
 
