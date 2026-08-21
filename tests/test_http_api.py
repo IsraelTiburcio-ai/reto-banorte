@@ -112,11 +112,15 @@ class HttpApiTests(unittest.TestCase):
             ["first", "second"],
         )
 
-    def test_open_responses_endpoint_is_not_added_in_phase_4(self) -> None:
+    def test_open_responses_endpoint_is_available_in_phase_5(self) -> None:
         client, _ = self.client_for([])
-        response = client.post("/v1/responses", json={"input": "hello"})
+        response = client.post(
+            "/v1/responses",
+            json={"model": "banorte-cv-agent", "input": "hello"},
+        )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["object"], "response")
 
 
 if __name__ == "__main__":

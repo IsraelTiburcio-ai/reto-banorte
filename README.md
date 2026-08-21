@@ -6,20 +6,21 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 4 — HTTP API
+Phase 5 — Open Responses compatibility
 
-La Phase 4 expone el `AgentCore` mediante una API HTTP delgada en FastAPI. La capa HTTP valida el contrato de entrada, serializa `PreparedAgentTurn` a JSON y traduce errores de input a respuestas HTTP sin mover reglas de retrieval, visibilidad o grounding fuera de sus capas existentes.
+La Phase 5 agrega un adaptador síncrono y textual para un subset estricto de Open Responses. El adaptador valida el transporte, extrae el último mensaje `user`, llama a `AgentCore` y serializa una respuesta determinista. No hay LLM todavía.
 
 Endpoints actuales:
 
 - `GET /health`
 - `POST /agent/prepare`
+- `POST /v1/responses`
 
-`POST /agent/prepare` es un contrato interno del proyecto y **todavía no es Open Responses**. La compatibilidad con Open Responses corresponde a Phase 5.
+`POST /agent/prepare` es un contrato interno. `POST /v1/responses` es un contrato interoperable parcial: Phase 5 no afirma full conformance con Open Responses.
 
 ## Arquitectura inicial
 
-- `api`: interfaz HTTP delgada, schemas y serialización.
+- `api`: interfaz HTTP delgada, schemas, adaptador Open Responses y serialización.
 - `agent`: política de comportamiento y orquestación provider-neutral del agente.
 - `models`: modelos internos y contratos provider-neutral.
 - `services`: lógica reutilizable e integraciones externas.
@@ -31,11 +32,21 @@ Endpoints actuales:
 
 Flujo actual:
 
-`HTTP -> AgentCore -> ProfileService -> data/profile.json`
+`POST /v1/responses -> Open Responses adapter -> AgentCore -> ProfileService -> data/profile.json`
 
 `ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
 
-Todavía no existe generación con LLM, compatibilidad Open Responses ni deployment.
+El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text`, replay estructural sin estado y un formateador determinista temporal. Rechaza `system`/`developer`, streaming, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+
+## Open Responses subset
+
+```bash
+curl -X POST http://localhost:8000/v1/responses \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"banorte-cv-agent","input":"¿Qué experiencia tiene Israel con MCP?"}'
+```
+
+El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no usa un LLM, no mantiene conversaciones y no acepta `previous_response_id`, `store`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
 
 ## Ejecución local
 
