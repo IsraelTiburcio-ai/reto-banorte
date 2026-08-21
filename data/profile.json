@@ -1,0 +1,1438 @@
+{
+  "metadata": {
+    "schema_version": "1.0",
+    "language": "es-MX",
+    "profile_owner": "Israel Tiburcio Suchil",
+    "purpose": "Professional CV conversational agent knowledge base",
+    "visibility": "public",
+    "evidence_level": "self_reported"
+  },
+  "identity": {
+    "id": "israel-tiburcio-suchil",
+    "full_name": "Israel Tiburcio Suchil",
+    "location": {
+      "city": "Ciudad de México",
+      "country": "México",
+      "visibility": "public",
+      "evidence_level": "self_reported"
+    },
+    "professional_headline": "IA Aplicada y Generativa | Python, SQL, Agentes y Automatización",
+    "visibility": "public",
+    "evidence_level": "self_reported"
+  },
+  "professional_summary": {
+    "current_focus": [
+      "IA aplicada",
+      "automatización",
+      "innovación",
+      "agentes de IA",
+      "Model Context Protocol"
+    ],
+    "profile": "Israel trabaja en la intersección de inteligencia artificial generativa, automatización, datos y desarrollo de producto. Su experiencia combina Python, SQL, APIs, e-commerce, integración de sistemas y herramientas para usuarios y equipos de negocio.",
+    "career_arc": [
+      "automatizaciones pequeñas",
+      "automatización de procesos a escala",
+      "Python, scraping y pipelines de datos",
+      "BI y herramientas internas",
+      "e-commerce y producto",
+      "búsqueda",
+      "innovación",
+      "agentes GenAI",
+      "MCP",
+      "autenticación y arquitecturas de software"
+    ],
+    "claim_limits": [
+      "El resumen describe una combinación de experiencia práctica y conocimiento en desarrollo; no presenta a Israel como especialista absoluto en todas las áreas.",
+      "Las métricas incluidas en proyectos son aproximadas cuando se indican como tales."
+    ],
+    "visibility": "public",
+    "evidence_level": "self_reported"
+  },
+  "career_story": {
+    "narrative": "Su recorrido comenzó con interés por la ciencia, la física y las matemáticas, y continuó con una formación en Matemáticas Aplicadas y Computación. Después de aprender programación y trabajar con datos, empezó a resolver procesos manuales mediante automatizaciones. Esa experiencia lo llevó hacia Python, scraping, pipelines, BI, e-commerce y búsqueda de productos. Más adelante se acercó a la IA generativa y a los agentes, primero mediante soluciones simples con contexto estructurado y después mediante integraciones con herramientas y MCPs. La formación matemática se relaciona con su trabajo en análisis de datos, estadística, pronósticos, optimización y sistemas inteligentes.",
+    "milestones": [
+      {
+        "id": "science-and-mathematics-interest",
+        "title": "Interés inicial por ciencia y matemáticas",
+        "description": "Durante la preparatoria desarrolló interés por física, astronomía, ciencia y divulgación científica.",
+        "evidence_level": "historical_experience",
+        "visibility": "public"
+      },
+      {
+        "id": "programming-foundations",
+        "title": "Primeros pasos en programación",
+        "description": "Comenzó con C y posteriormente aprendió Python mediante ejercicios de lógica, matemáticas y procesamiento de datos.",
+        "evidence_level": "historical_experience",
+        "visibility": "public"
+      },
+      {
+        "id": "data-and-automation",
+        "title": "Datos y automatización",
+        "description": "Evolucionó de ejercicios y scripts hacia automatizaciones, scraping, pipelines, herramientas internas y procesos de BI.",
+        "evidence_level": "direct_professional_experience",
+        "visibility": "public"
+      },
+      {
+        "id": "ecommerce-and-product",
+        "title": "E-commerce y producto",
+        "description": "Participó en iniciativas de e-commerce, búsqueda de productos, analítica, integraciones y mantenimiento de una tienda Shopify.",
+        "evidence_level": "direct_professional_experience",
+        "visibility": "public"
+      },
+      {
+        "id": "applied-ai-direction",
+        "title": "Enfoque profesional hacia IA aplicada",
+        "description": "Una conversación durante un hackathon nacional reforzó su decisión de enfocarse en IA para resolver problemas reales de negocio.",
+        "evidence_level": "historical_experience",
+        "visibility": "public",
+        "claim_limits": [
+          "No se almacenan nombres, contactos ni detalles privados de la persona con quien conversó."
+        ]
+      },
+      {
+        "id": "agents-and-mcp",
+        "title": "Agentes y Model Context Protocol",
+        "description": "En su etapa de innovación participó en agentes conversacionales, tool calling, integraciones con MCP y soluciones de autenticación.",
+        "evidence_level": "direct_professional_experience",
+        "visibility": "public"
+      }
+    ],
+    "visibility": "public",
+    "evidence_level": "self_reported"
+  },
+  "experience": [
+    {
+      "id": "prixz",
+      "organization": "Prixz",
+      "period": {
+        "start": "2025-06",
+        "end": null,
+        "label": "Junio 2025 – presente"
+      },
+      "roles": [
+        {
+          "id": "prixz-ai-automation-analyst",
+          "title": "Analista de Inteligencia Artificial y Automatización",
+          "period": {
+            "start": "2025-06",
+            "end": "2026-06",
+            "label": "Junio 2025 – Junio 2026"
+          },
+          "evidence_level": "direct_professional_experience",
+          "visibility": "public"
+        },
+        {
+          "id": "prixz-innovation-analyst",
+          "title": "Analista de Innovación",
+          "period": {
+            "start": "2026-06",
+            "end": null,
+            "label": "Junio 2026 – presente"
+          },
+          "evidence_level": "direct_professional_experience",
+          "visibility": "public"
+        }
+      ],
+      "summary": "Ingresó a Prixz mientras estudiaba la universidad. Su trabajo ha incluido automatización, datos, e-commerce, búsqueda de productos, agentes conversacionales, MCP, integración de sistemas y autenticación.",
+      "project_ids": [
+        "prixz-whatsapp-agent-challenge",
+        "catalog-ai-automation",
+        "metrilo-data-pipelines",
+        "competitive-intelligence",
+        "farmacia-la-paz-shopify",
+        "klaviyo-monetization",
+        "generic-product-search",
+        "claudia",
+        "crisp-ai-agent",
+        "mcp-order-status",
+        "mcp-analytics",
+        "sales-forecasting",
+        "otp-fast-login"
+      ],
+      "claim_limits": [
+        "Las contribuciones se describen con verbos que distinguen entre diseño, desarrollo, co-desarrollo, participación, integración y mantenimiento.",
+        "No se incluyen secretos, endpoints internos, credenciales, información de pacientes o clientes ni infraestructura sensible."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "ios-development-lab",
+      "organization": "iOS Development Lab — UNAM",
+      "period": {
+        "start": "2024-08",
+        "end": "2024-12",
+        "label": "Agosto 2024 – Diciembre 2024"
+      },
+      "role": "Mentor y Soporte Técnico / Servicio Social",
+      "summary": "Ingresó mediante recomendación de un amigo, aprendió Swift y SwiftUI para impartir cursos y posteriormente apoyó a otros estudiantes.",
+      "responsibilities": [
+        "impartir cursos",
+        "mentorizar estudiantes",
+        "resolver problemas técnicos",
+        "comunicar conceptos técnicos",
+        "apoyar presentaciones y storytelling",
+        "participar en actividades de desarrollo mobile y hackathons"
+      ],
+      "project_ids": [
+        "fi-fan",
+        "apapacho",
+        "bimbo-run",
+        "mba-yo"
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    }
+  ],
+  "projects": [
+    {
+      "id": "prixz-whatsapp-agent-challenge",
+      "name": "Agente de farmacia para prueba técnica",
+      "organization": "Prixz",
+      "context": "Prueba técnica de ingreso",
+      "ownership": "built_for_technical_evaluation",
+      "problem": "Construir una experiencia conversacional orientada a una farmacia mediante WhatsApp sin contar inicialmente con toda la información del dominio.",
+      "solution": "Israel investigó información relevante por su cuenta y estructuró contexto para que el agente pudiera responder. Utilizó n8n, context injection mediante prompts y estructuras JSON.",
+      "technologies": [
+        "n8n",
+        "prompts",
+        "estructuras JSON",
+        "WhatsApp"
+      ],
+      "claim_limits": [
+        "Fue una solución inicial basada en contexto estructurado; no se describe como un sistema RAG moderno.",
+        "No se afirma que haya sido un producto de producción permanente."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "catalog-ai-automation",
+      "name": "Automatización de catálogo y SEO",
+      "organization": "Prixz",
+      "ownership": "participated_and_implemented",
+      "problem": "La creación de información SEO y fichas de producto requería trabajo manual. Existía un GPT personalizado, pero el flujo todavía implicaba copiar y pegar resultados.",
+      "solution": "Participó en la automatización del flujo para procesar información de catálogo con n8n, Google Sheets, Google Apps Script e inteligencia artificial.",
+      "technologies": [
+        "n8n",
+        "Google Sheets",
+        "Google Apps Script",
+        "inteligencia artificial"
+      ],
+      "impact": "El flujo pasó aproximadamente de 20–50 registros manuales por día a aproximadamente 1,000–2,000 registros por día sobre un catálogo de aproximadamente 15,000 productos.",
+      "metrics": [
+        {
+          "name": "manual_daily_records_before",
+          "value": "20–50",
+          "unit": "registros por día",
+          "approximate": true
+        },
+        {
+          "name": "automated_daily_records_after",
+          "value": "1,000–2,000",
+          "unit": "registros por día",
+          "approximate": true
+        },
+        {
+          "name": "catalog_size",
+          "value": "15,000",
+          "unit": "productos",
+          "approximate": true
+        }
+      ],
+      "claim_limits": [
+        "Las cantidades son aproximadas y no se presentan como métricas auditadas.",
+        "La contribución se describe como participación e implementación, no como propiedad exclusiva de todo el flujo."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "metrilo-data-pipelines",
+      "name": "Extracción de datos y pipelines de Metrilo",
+      "organization": "Prixz",
+      "ownership": "developed",
+      "problem": "La API o plataforma disponible no cubría adecuadamente la descarga de determinados reportes requeridos por el negocio.",
+      "solution": "Desarrolló pipelines en Python para automatizar la extracción y el procesamiento de datos desde herramientas de negocio con limitaciones de exportación, incluyendo scraping cuando era necesario. Los datos se utilizaban posteriormente para alimentar un Data Warehouse.",
+      "technologies": [
+        "Python",
+        "scraping",
+        "extracción de datos",
+        "automatización",
+        "Data Warehouse",
+        "pipelines"
+      ],
+      "deployment_note": "Algunos scripts se empaquetaron para facilitar su ejecución automatizada.",
+      "impact": "Dejó herramientas de extracción automatizada para apoyar procesos de datos del negocio.",
+      "claim_limits": [
+        "No se infiere una infraestructura específica ni un proveedor cloud.",
+        "No se exponen reportes, datos internos ni credenciales."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "competitive-intelligence",
+      "name": "Competitive Intelligence y scraping de farmacias",
+      "organization": "Prixz",
+      "ownership": "developed_and_left_operable",
+      "problem": "El equipo de BI necesitaba analizar precios y competitividad de farmacias del mercado.",
+      "solution": "Colaboró con BI en herramientas de scraping para consultar múltiples farmacias mediante SKU, nombre, URLs previamente identificadas o categorías.",
+      "sources_worked_with": [
+        "Farmacias Guadalajara",
+        "San Pablo",
+        "otras farmacias del mercado"
+      ],
+      "data_fields": [
+        "nombre",
+        "precio",
+        "precio anterior o tachado",
+        "SKU",
+        "URL",
+        "imagen",
+        "categorías"
+      ],
+      "technologies": [
+        "scraping",
+        "Python",
+        "análisis de precios",
+        "Data Warehouse"
+      ],
+      "impact": "La herramienta quedó operable para el equipo de BI y los datos históricos podían alimentar análisis y Data Warehouse.",
+      "claim_limits": [
+        "No se especifican técnicas anti-bot, infraestructura ni volúmenes de extracción.",
+        "No se presentan los datos como información pública en tiempo real."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "farmacia-la-paz-shopify",
+      "name": "Farmacia La Paz / Shopify",
+      "organization": "Prixz",
+      "ownership": "co-developed_and_maintained",
+      "problem": "Mantener y evolucionar una tienda de e-commerce con sus integraciones, analítica y sistemas relacionados.",
+      "solution": "Co-desarrolló y mantuvo la tienda Shopify de Farmacia La Paz, participando en frontend, lógica del sitio, integraciones, e-commerce, analítica, sistemas internos, plugins y mantenimiento.",
+      "technologies": [
+        "Shopify",
+        "Liquid",
+        "frontend",
+        "integraciones",
+        "analítica"
+      ],
+      "workflow": [
+        "pruebas",
+        "logs",
+        "documentación",
+        "despliegues",
+        "branches",
+        "pull requests"
+      ],
+      "claim_limits": [
+        "No se afirma que Israel haya desarrollado completamente el sistema en solitario."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "klaviyo-monetization",
+      "name": "Automatización de limpieza de bases de Klaviyo",
+      "organization": "Prixz",
+      "ownership": "developed",
+      "problem": "Durante campañas comerciales, el equipo descargaba y limpiaba manualmente diferentes bases de Klaviyo y segmentos de usuarios.",
+      "solution": "Construyó una herramienta para automatizar la limpieza y procesamiento de archivos. El equipo debía cargar los archivos correspondientes.",
+      "technologies": [
+        "Klaviyo",
+        "automatización",
+        "procesamiento de archivos"
+      ],
+      "impact": "El proceso pasó aproximadamente de 2–3 horas a aproximadamente 10 minutos.",
+      "metrics": [
+        {
+          "name": "processing_time_before",
+          "value": "2–3",
+          "unit": "horas",
+          "approximate": true
+        },
+        {
+          "name": "processing_time_after",
+          "value": "10",
+          "unit": "minutos",
+          "approximate": true
+        }
+      ],
+      "claim_limits": [
+        "Las cifras son aproximadas y no se presentan como métricas auditadas.",
+        "No se almacenan segmentos, archivos ni datos de clientes."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "generic-product-search",
+      "name": "Búsqueda de genéricos y productos",
+      "organization": "Prixz",
+      "ownership": "participated_and_implemented",
+      "problem": "Contact Center y Negociaciones necesitaban localizar medicamentos genéricos y productos disponibles en las fuentes de información del negocio.",
+      "solution": "Participó en herramientas para facilitar la búsqueda de productos utilizando tecnologías de búsqueda y catálogos de productos.",
+      "technologies": [
+        "DoFinder",
+        "Elasticsearch",
+        "OpenSearch",
+        "búsqueda de productos"
+      ],
+      "claim_limits": [
+        "Se registran estas tecnologías como utilizadas en contextos de búsqueda de productos, sin afirmar dominio profundo de todos los motores.",
+        "No se incluyen índices, consultas ni estructuras internas."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "claudia",
+      "name": "ClaudIA",
+      "organization": "Prixz",
+      "ownership": "participated_in_development_and_integration",
+      "description": "Agente conversacional utilizado mediante WhatsApp durante la etapa de Innovación.",
+      "capabilities_related": [
+        "búsqueda de productos",
+        "recomendaciones de productos",
+        "carrito",
+        "seguimiento de pedidos",
+        "preguntas frecuentes",
+        "facturación",
+        "atención al paciente o cliente",
+        "escalamiento a humanos",
+        "integración con bases de datos",
+        "MCPs",
+        "tools",
+        "memoria mediante Redis",
+        "políticas de atención"
+      ],
+      "technologies": [
+        "WhatsApp",
+        "agentes conversacionales",
+        "MCP",
+        "Redis",
+        "integración de sistemas"
+      ],
+      "safety_notes": [
+        "Las recomendaciones no se describen como recomendaciones médicas.",
+        "Cuando corresponde, el agente debe mantener restricciones de seguridad y recomendar acudir a profesionales de salud."
+      ],
+      "claim_limits": [
+        "Israel participó en el desarrollo e integración de ClaudIA; no se afirma que la haya desarrollado completamente.",
+        "No se exponen datos de pacientes o clientes, reglas internas sensibles ni detalles de infraestructura."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "crisp-ai-agent",
+      "name": "Agente de inteligencia artificial en Crisp",
+      "organization": "Prixz",
+      "ownership": "configured_and_modified",
+      "description": "Participó en la configuración y modificación del agente de inteligencia artificial utilizado en Crisp.",
+      "contributions": [
+        "entrenamiento y configuración",
+        "comportamiento",
+        "integración con MCPs",
+        "tools",
+        "reglas"
+      ],
+      "claim_limits": [
+        "Existe la intención de que ClaudIA reemplace progresivamente ciertas funciones del agente anterior, pero no se afirma que la migración esté completa."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mcp-order-status",
+      "name": "MCP operacional de estados de pedido",
+      "organization": "Prixz",
+      "ownership": "designed_and_developed",
+      "description": "Servidor Model Context Protocol desarrollado en Python para permitir que un agente de Contact Center consulte estados de pedido.",
+      "technologies": [
+        "Python",
+        "Model Context Protocol",
+        "tools parametrizadas",
+        "JSON"
+      ],
+      "capabilities": [
+        "validación de solicitudes",
+        "integración con servicios de pedidos",
+        "respuestas estructuradas"
+      ],
+      "operational_context": "El agente de Contact Center dentro del cual participa este MCP procesa más de 1,000 conversaciones diarias. Ese dato corresponde al agente y no se atribuye directamente al MCP.",
+      "claim_limits": [
+        "No se afirma que el MCP procese directamente más de 1,000 consultas diarias.",
+        "No se incluyen detalles de sistemas internos, mecanismos de acceso, endpoints ni credenciales."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mcp-analytics",
+      "name": "MCPs analíticos",
+      "organization": "Prixz",
+      "ownership": "participated_in_development",
+      "description": "MCPs enfocados en BI, dirección, análisis, NPS e insights, conectados con datos de un Data Warehouse mediante herramientas controladas.",
+      "technologies": [
+        "Data Warehouse",
+        "Model Context Protocol",
+        "tool calling",
+        "lenguaje natural"
+      ],
+      "capabilities": [
+        "herramientas predefinidas",
+        "consultas mediante lenguaje natural",
+        "llamadas encadenadas"
+      ],
+      "scale_note": "En algunos casos existen hasta aproximadamente 13 herramientas predefinidas.",
+      "design_decisions": [
+        "Evitar SQL libre generado por el agente cuando existen riesgos de seguridad, control o consistencia.",
+        "Utilizar herramientas controladas para obtener datos."
+      ],
+      "claim_limits": [
+        "La cantidad de herramientas es aproximada.",
+        "No se exponen consultas, esquemas, nombres de tablas ni datos internos."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "sales-forecasting",
+      "name": "Forecasting de ventas",
+      "organization": "Prixz",
+      "ownership": "developed",
+      "description": "Ejercicio o solución de forecasting utilizando históricos de ventas.",
+      "objective": "Estimar cuánto se esperaba vender y comparar el avance del día contra el comportamiento esperado.",
+      "claim_limits": [
+        "No se especifica un algoritmo concreto porque no está documentado."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "otp-fast-login",
+      "name": "OTP / Fast Login",
+      "organization": "Prixz",
+      "ownership": "designed_and_developed",
+      "problem": "ClaudIA podía generar un carrito o cotización, pero el usuario llegaba al checkout sin estar autenticado y debía proporcionar nuevamente información para comprar.",
+      "solution": "Se desarrolló una solución OTP o magic link que puede autenticar al usuario, conservar el contexto del carrito, abrir el sitio y reducir fricción antes de comprar.",
+      "flow": [
+        "el usuario proporciona su correo",
+        "recibe un enlace",
+        "abre el enlace",
+        "accede sin ingresar contraseña"
+      ],
+      "architecture": "arquitectura hexagonal",
+      "evolution": "La arquitectura fue reutilizada para construir Fast Login o passwordless login en Prixz.",
+      "first_integration": "La primera integración se realizó alrededor de un flujo de acceso a cuentas.",
+      "claim_limits": [
+        "La reutilización en otros escenarios se describe como posibilidad futura, no como funcionalidad existente."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "fi-fan",
+      "name": "FI-FAN",
+      "organization": "iOS Development Lab — UNAM",
+      "event": "Hackathon iOS Development Lab UNAM 2025",
+      "recognition": "1.er lugar",
+      "category": "Inteligencia Artificial / proyecto relacionado con turismo y Mundial",
+      "ownership": "participated_in_team_project",
+      "description": "Aplicación orientada a mejorar experiencias de turismo y fútbol.",
+      "capabilities": [
+        "recomendaciones personalizadas",
+        "ubicación",
+        "presupuesto",
+        "restricciones",
+        "mapas",
+        "sitios turísticos",
+        "interacción entre turistas y fans",
+        "contenido relacionado con partidos"
+      ],
+      "technologies": [
+        "Apple Foundation Models",
+        "inferencia on-device"
+      ],
+      "claim_limits": [
+        "No se fija un nombre más específico para la categoría porque existe ambigüedad en su denominación."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "apapacho",
+      "name": "Apapacho",
+      "organization": "iOS Development Lab — UNAM",
+      "event": "Hackathon iOS Development Lab UNAM 2026",
+      "recognition": "1.er lugar",
+      "category": "Salud",
+      "ownership": "participated_in_team_project",
+      "description": "Aplicación enfocada en bienestar y autorreflexión como apoyo no clínico.",
+      "capabilities": [
+        "preguntas y reflexiones diarias",
+        "seguimiento de respuestas",
+        "IA para interpretar patrones",
+        "contenido de meditación",
+        "podcasts y videos",
+        "actividades",
+        "juegos sencillos",
+        "contactos de ayuda"
+      ],
+      "technologies": [
+        "Groq"
+      ],
+      "safety_notes": [
+        "No es un diagnóstico, terapia, herramienta médica ni sistema clínico.",
+        "Su alcance se limita a apoyo no clínico y autorreflexión."
+      ],
+      "claim_limits": [
+        "No se atribuyen capacidades clínicas o terapéuticas."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "bimbo-run",
+      "name": "Bimbo Run",
+      "event": "Swift Changemakers Hackathon 2026",
+      "ownership": "participated_in_team_project",
+      "description": "Proyecto relacionado con IA para análisis de anaqueles y generación de recomendaciones estructuradas.",
+      "technologies": [
+        "Groq",
+        "visión multimodal"
+      ],
+      "claim_limits": [
+        "Se registra como participación nacional; no se afirma que haya ganado."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mba-yo",
+      "name": "MBA-YO",
+      "event": "Swift Changemakers Hackathon 2025",
+      "recognition": "2.º lugar nacional",
+      "challenge": "AgroYouth",
+      "ownership": "participated_in_team_project",
+      "description": "Aplicación orientada a comunidades agrícolas.",
+      "capabilities": [
+        "tutoriales",
+        "apoyos gubernamentales",
+        "gestión de cultivos",
+        "acceso a agrónomos",
+        "calculadoras de fertilizante",
+        "gestión de equipo",
+        "agenda agrícola"
+      ],
+      "event_context": "Participaron más de 200 estudiantes de 12 iOS Labs.",
+      "claim_limits": [
+        "La cantidad de participantes se conserva como una cifra de contexto y no como una métrica auditada."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    }
+  ],
+  "education": {
+    "formal": [
+      {
+        "id": "unam-fes-acatlan-mac",
+        "institution": "Universidad Nacional Autónoma de México",
+        "faculty": "FES Acatlán",
+        "program": "Matemáticas Aplicadas y Computación",
+        "period": {
+          "start": "2021",
+          "end": null,
+          "label": "2021 – presente"
+        },
+        "status": "in_progress",
+        "pending_course_count": 1,
+        "estimated_completion": "Diciembre 2026",
+        "claim_limits": [
+          "Israel no ha terminado la licenciatura ni se afirma que ya esté titulado.",
+          "La conclusión indicada es estimada."
+        ],
+        "evidence_level": "academic_experience",
+        "visibility": "public"
+      },
+      {
+        "id": "enp-5-unam",
+        "institution": "Escuela Nacional Preparatoria 5 — UNAM",
+        "program": "Educación media superior",
+        "period": {
+          "start": null,
+          "end": null,
+          "label": "Etapa previa a la universidad"
+        },
+        "focus_areas": [
+          "física",
+          "astronomía",
+          "ciencia",
+          "divulgación científica"
+        ],
+        "evidence_level": "academic_experience",
+        "visibility": "public"
+      }
+    ],
+    "academic_origin": {
+      "initial_interests": [
+        "Física",
+        "Matemáticas",
+        "Computación"
+      ],
+      "decision_story": "Inicialmente exploró Física y Matemáticas, después consideró opciones de Computación y finalmente ingresó a Matemáticas Aplicadas y Computación, combinando dos áreas que ya le interesaban. Se trata de un camino académico no lineal, no de un error.",
+      "evidence_level": "historical_experience",
+      "visibility": "public"
+    }
+  },
+  "training": [
+    {
+      "id": "swift-swiftui-teaching-preparation",
+      "name": "Preparación en Swift y SwiftUI para cursos",
+      "context": "iOS Development Lab — UNAM",
+      "description": "Aprendió Swift y SwiftUI mediante documentación, cursos y videos, práctica y mentoría directa antes de impartir cursos.",
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "programming-self-learning",
+      "name": "Aprendizaje inicial de programación",
+      "description": "Comenzó con C y después aprendió Python mediante ejercicios de lógica, palíndromos, fechas, años bisiestos, Fibonacci, árboles, memoria dinámica y procesamiento de datos.",
+      "evidence_level": "historical_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "applied-ai-academic-training",
+      "name": "Formación académica relacionada con IA y datos",
+      "description": "Su formación universitaria incluyó o se relaciona con Métodos Numéricos, Minería de Datos, Sistemas Inteligentes, Estadística y Pronósticos.",
+      "topics": [
+        "regresión",
+        "interpolación",
+        "método de Newton",
+        "exploración de datos",
+        "forecasting",
+        "agentes"
+      ],
+      "evidence_level": "academic_experience",
+      "visibility": "public"
+    }
+  ],
+  "achievements": [
+    {
+      "id": "astronomy-interprepas-school-result",
+      "name": "Clasificatoria de astronomía",
+      "result": "Segundo lugar dentro de su preparatoria",
+      "context": "Clasificatoria relacionada con Interprepas durante la etapa en ENP 5 de la UNAM",
+      "claim_limits": [
+        "No se afirma que haya obtenido segundo lugar general en Interprepas."
+      ],
+      "evidence_level": "historical_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "fi-fan-first-place",
+      "name": "Primer lugar con FI-FAN",
+      "project_id": "fi-fan",
+      "result": "1.er lugar — Hackathon iOS Development Lab UNAM 2025",
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "apapacho-first-place",
+      "name": "Primer lugar con Apapacho",
+      "project_id": "apapacho",
+      "result": "1.er lugar — Hackathon iOS Development Lab UNAM 2026",
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mba-yo-second-place",
+      "name": "Segundo lugar nacional con MBA-YO",
+      "project_id": "mba-yo",
+      "result": "2.º lugar nacional — Swift Changemakers Hackathon 2025",
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    }
+  ],
+  "hackathons": {
+    "approximate_participation_count": 6,
+    "count_is_approximate": true,
+    "activities": [
+      "competir",
+      "moderar",
+      "presentar soluciones"
+    ],
+    "skills_developed": [
+      "storytelling",
+      "presentación",
+      "trabajo en equipo",
+      "desarrollo rápido",
+      "solución de problemas",
+      "producto",
+      "comunicación"
+    ],
+    "notable_projects": [
+      "fi-fan",
+      "apapacho",
+      "bimbo-run",
+      "mba-yo"
+    ],
+    "claim_limits": [
+      "La participación aproximada es cercana a seis hackathons; no se convierte en un conteo absoluto sin un registro completo.",
+      "Moderó uno o más hackathons antes de comenzar a competir directamente."
+    ],
+    "evidence_level": "self_reported",
+    "visibility": "public"
+  },
+  "skills": [
+    {
+      "id": "python",
+      "name": "Python",
+      "level": "strong_practical",
+      "contexts": [
+        "automatizaciones",
+        "scraping",
+        "ETL",
+        "pipelines",
+        "APIs",
+        "MCP",
+        "procesamiento de datos",
+        "scripts",
+        "lógica",
+        "testing",
+        "OOP",
+        "conceptos async"
+      ],
+      "evidence": [
+        "metrilo-data-pipelines",
+        "mcp-order-status",
+        "competitive-intelligence",
+        "programming-self-learning"
+      ],
+      "notes": [
+        "Tiene experiencia histórica escribiendo Python directamente.",
+        "Actualmente utiliza desarrollo asistido por IA de manera intensiva.",
+        "Su fortaleza principal está en comprender problemas, arquitectura, elección de enfoques, revisión de código, debugging, validación y trabajo con documentación."
+      ],
+      "claim_limits": [
+        "No se afirma que escriba todo el código de memoria sin herramientas."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "sql-and-databases",
+      "name": "SQL y bases de datos",
+      "level": "strong_practical",
+      "contexts": [
+        "SELECT",
+        "JOIN",
+        "views",
+        "INSERT",
+        "DELETE",
+        "TRUNCATE",
+        "diseño de bases",
+        "consultas",
+        "Data Warehouse",
+        "administración académica",
+        "bases distribuidas"
+      ],
+      "technologies": [
+        "PostgreSQL",
+        "MySQL",
+        "MariaDB"
+      ],
+      "evidence": [
+        "metrilo-data-pipelines",
+        "mcp-analytics",
+        "sales-forecasting"
+      ],
+      "notes": [
+        "PostgreSQL es la base de datos con mayor experiencia."
+      ],
+      "claim_limits": [
+        "No se presenta como DBA de producción.",
+        "No se almacenan credenciales, SQL interno ni esquemas de empresas."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "generative-ai",
+      "name": "IA generativa",
+      "level": "strong_practical",
+      "contexts": [
+        "prompting",
+        "agentes",
+        "tool calling",
+        "MCP",
+        "structured outputs",
+        "modelos multimodales",
+        "guardrails",
+        "LLM APIs"
+      ],
+      "evidence": [
+        "prixz-whatsapp-agent-challenge",
+        "claudia",
+        "mcp-order-status",
+        "mcp-analytics",
+        "fi-fan",
+        "apapacho",
+        "bimbo-run"
+      ],
+      "notes": [
+        "Utiliza prompting diariamente.",
+        "Aplica roles, límites, scope, restricciones y definiciones explícitas de lo que una solución puede o no puede modificar."
+      ],
+      "claim_limits": [
+        "El nivel refleja experiencia práctica en los contextos indicados y no implica dominio de todos los modelos o proveedores."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "rag-and-embeddings",
+      "name": "RAG y embeddings",
+      "level": "working_knowledge",
+      "contexts": [
+        "embeddings",
+        "búsqueda semántica",
+        "retrieval",
+        "cosine similarity",
+        "distancias",
+        "evaluación",
+        "contexto",
+        "vector search"
+      ],
+      "notes": [
+        "Comprende los conceptos y no define RAG exclusivamente como uso de una base vectorial."
+      ],
+      "claim_limits": [
+        "No se afirma experiencia profunda en producción con Pinecone, Weaviate, Milvus, Qdrant u otras bases vectoriales.",
+        "Esta entrada representa conocimiento conceptual y no una implementación de RAG en este repositorio."
+      ],
+      "evidence_level": "conceptual_knowledge",
+      "visibility": "public"
+    },
+    {
+      "id": "backend",
+      "name": "Backend e integración de servicios",
+      "level": "practical",
+      "contexts": [
+        "FastAPI",
+        "Flask",
+        "REST APIs",
+        "authentication",
+        "JSON",
+        "services"
+      ],
+      "evidence": [
+        "otp-fast-login",
+        "mcp-order-status",
+        "metrilo-data-pipelines"
+      ],
+      "claim_limits": [
+        "La experiencia se describe en los contextos indicados y no como dominio de todos los frameworks backend."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "software-architecture",
+      "name": "Arquitectura de software",
+      "level": "working_knowledge",
+      "contexts": [
+        "arquitectura hexagonal",
+        "MVC",
+        "MVVM",
+        "otros patrones"
+      ],
+      "evidence": [
+        "otp-fast-login",
+        "git-and-development-workflow"
+      ],
+      "notes": [
+        "Tiene experiencia real con arquitectura hexagonal y conocimiento o estudio de otros patrones."
+      ],
+      "claim_limits": [
+        "No se presenta como arquitecto de software senior."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "docker",
+      "name": "Docker",
+      "level": "basic_familiarity",
+      "contexts": [
+        "containers",
+        "aislamiento",
+        "portabilidad",
+        "ejecución de proyectos"
+      ],
+      "notes": [
+        "Ha utilizado Docker para levantar proyectos."
+      ],
+      "claim_limits": [
+        "No se presenta como especialista."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "servers-and-devops",
+      "name": "Servidores y DevOps",
+      "level": "basic_familiarity",
+      "contexts": [
+        "terminal",
+        "servidores",
+        "debugging",
+        "ejecución de aplicaciones"
+      ],
+      "notes": [
+        "En el trabajo colabora con personal DevOps cuando la infraestructura requiere conocimientos especializados."
+      ],
+      "claim_limits": [
+        "No se presenta como DevOps o SRE.",
+        "CI/CD se registra como una práctica con nivel práctico en el flujo de desarrollo, no como especialidad de infraestructura."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "aws",
+      "name": "AWS",
+      "level": "working_knowledge",
+      "contexts": [
+        "cloud computing"
+      ],
+      "notes": [
+        "Experiencia o familiaridad práctica con AWS en el nivel indicado."
+      ],
+      "claim_limits": [
+        "No se infieren servicios específicos de AWS porque no están documentados."
+      ],
+      "evidence_level": "conceptual_knowledge",
+      "visibility": "public"
+    },
+    {
+      "id": "gcp",
+      "name": "GCP",
+      "level": "conceptual_knowledge",
+      "contexts": [
+        "cloud computing"
+      ],
+      "notes": [
+        "No se reporta experiencia práctica hands-on todavía."
+      ],
+      "claim_limits": [
+        "No presentar GCP como experiencia práctica."
+      ],
+      "evidence_level": "self_reported",
+      "visibility": "public"
+    },
+    {
+      "id": "oracle-cloud",
+      "name": "Oracle Cloud",
+      "level": "basic_familiarity",
+      "contexts": [
+        "cloud computing"
+      ],
+      "notes": [
+        "No se reporta experiencia práctica hands-on."
+      ],
+      "claim_limits": [
+        "No presentar Oracle Cloud como experiencia práctica."
+      ],
+      "evidence_level": "self_reported",
+      "visibility": "public"
+    },
+    {
+      "id": "swift",
+      "name": "Swift",
+      "level": "practical",
+      "contexts": [
+        "desarrollo mobile",
+        "hackathons",
+        "enseñanza"
+      ],
+      "evidence": [
+        "ios-development-lab",
+        "fi-fan",
+        "apapacho",
+        "bimbo-run",
+        "mba-yo"
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "swiftui",
+      "name": "SwiftUI",
+      "level": "practical",
+      "contexts": [
+        "desarrollo mobile",
+        "hackathons",
+        "enseñanza"
+      ],
+      "evidence": [
+        "ios-development-lab",
+        "fi-fan",
+        "apapacho",
+        "bimbo-run",
+        "mba-yo"
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "shopify-liquid",
+      "name": "Shopify y Liquid",
+      "level": "practical",
+      "contexts": [
+        "e-commerce",
+        "frontend",
+        "mantenimiento de tienda"
+      ],
+      "evidence": [
+        "farmacia-la-paz-shopify"
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "javascript",
+      "name": "JavaScript",
+      "level": "working_knowledge",
+      "contexts": [
+        "frontend",
+        "integraciones web"
+      ],
+      "notes": [
+        "La experiencia frontend es más fuerte en mobile y Shopify o e-commerce que en frontend web generalista."
+      ],
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "git-and-development-workflow",
+      "name": "Git y flujo de desarrollo",
+      "level": "practical",
+      "contexts": [
+        "Git",
+        "GitHub",
+        "branches",
+        "main",
+        "develop",
+        "feature branches",
+        "pull requests",
+        "issues",
+        "milestones",
+        "ADRs",
+        "tests",
+        "logs",
+        "CI/CD"
+      ],
+      "evidence": [
+        "farmacia-la-paz-shopify",
+        "git-and-development-workflow",
+        "otp-fast-login"
+      ],
+      "notes": [
+        "En sus flujos actuales utiliza la relación main, develop y feature branches.",
+        "Utiliza ADRs para mantener decisiones técnicas y evitar desviaciones del alcance acordado.",
+        "CI/CD aparece como práctica de flujo, no como especialidad DevOps."
+      ],
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "ai-assisted-development",
+      "name": "Desarrollo asistido por IA",
+      "level": "strong_practical",
+      "contexts": [
+        "implementación",
+        "análisis",
+        "documentación",
+        "refactorización",
+        "debugging",
+        "tests",
+        "revisión de cambios"
+      ],
+      "tools_used": [
+        "Cursor",
+        "Claude Code",
+        "OpenCode",
+        "OpenAI Codex"
+      ],
+      "notes": [
+        "Utiliza agentes de desarrollo para acelerar la implementación mientras conserva responsabilidad sobre arquitectura, decisiones técnicas, revisión, pruebas y validación.",
+        "Tiene experiencia previa programando manualmente antes de adoptar estas herramientas."
+      ],
+      "claim_limits": [
+        "No describir la IA como sustituto de su responsabilidad técnica ni como si la IA programara por él."
+      ],
+      "evidence_level": "self_reported",
+      "visibility": "public"
+    }
+  ],
+  "knowledge_areas": [
+    {
+      "id": "applied-ai",
+      "name": "IA aplicada",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "generative-ai-area",
+      "name": "IA generativa",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "agents",
+      "name": "Agentes",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mcp",
+      "name": "Model Context Protocol",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "automation",
+      "name": "Automatización",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "data-pipelines",
+      "name": "Data pipelines",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "web-scraping",
+      "name": "Web scraping",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "etl",
+      "name": "ETL",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "databases",
+      "name": "Bases de datos",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "e-commerce",
+      "name": "E-commerce",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "product-search",
+      "name": "Búsqueda de productos",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "authentication",
+      "name": "Autenticación",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "software-integration",
+      "name": "Integración de sistemas",
+      "evidence_level": "direct_professional_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "forecasting",
+      "name": "Forecasting",
+      "evidence_level": "academic_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "exploratory-data-analysis",
+      "name": "Análisis exploratorio de datos",
+      "evidence_level": "academic_experience",
+      "visibility": "public"
+    },
+    {
+      "id": "mobile-development",
+      "name": "Desarrollo mobile",
+      "evidence_level": "direct_project_experience",
+      "visibility": "public"
+    }
+  ],
+  "working_style": {
+    "principles": [
+      {
+        "id": "identify-repetition",
+        "statement": "Tiende a identificar procesos manuales repetitivos como oportunidades de automatización.",
+        "evidence": [
+          "catalog-ai-automation",
+          "klaviyo-monetization",
+          "metrilo-data-pipelines"
+        ],
+        "evidence_level": "direct_professional_experience"
+      },
+      {
+        "id": "iterate-from-simple-solutions",
+        "statement": "Tiende a iterar desde soluciones simples hacia herramientas más reutilizables cuando el problema lo requiere.",
+        "evidence": [
+          "prixz-whatsapp-agent-challenge",
+          "competitive-intelligence",
+          "claudia"
+        ],
+        "evidence_level": "direct_project_experience"
+      },
+      {
+        "id": "reach-real-usage",
+        "statement": "Busca llevar las herramientas hasta un uso real por equipos de negocio.",
+        "evidence": [
+          "competitive-intelligence",
+          "catalog-ai-automation",
+          "generic-product-search"
+        ],
+        "evidence_level": "direct_professional_experience"
+      },
+      {
+        "id": "understand-problem-first",
+        "statement": "Procura entender primero el problema y el contexto de negocio antes de elegir una solución técnica.",
+        "evidence": [
+          "prixz-whatsapp-agent-challenge",
+          "otp-fast-login",
+          "mcp-order-status"
+        ],
+        "evidence_level": "direct_project_experience"
+      },
+      {
+        "id": "ai-as-development-tool",
+        "statement": "Utiliza IA como herramienta de desarrollo y conserva la responsabilidad sobre arquitectura, decisiones, revisión, pruebas y validación.",
+        "evidence": [
+          "ai-assisted-development"
+        ],
+        "evidence_level": "self_reported"
+      },
+      {
+        "id": "validate-with-tests-and-logs",
+        "statement": "Tiende a validar implementaciones mediante pruebas y logs.",
+        "evidence": [
+          "farmacia-la-paz-shopify",
+          "git-and-development-workflow"
+        ],
+        "evidence_level": "direct_professional_experience"
+      },
+      {
+        "id": "document-decisions",
+        "statement": "Utiliza documentación y ADRs para mantener decisiones técnicas y el alcance acordado.",
+        "evidence": [
+          "git-and-development-workflow"
+        ],
+        "evidence_level": "direct_professional_experience"
+      },
+      {
+        "id": "incremental-delivery",
+        "statement": "Trabaja de manera incremental, con una responsabilidad clara antes de introducir la siguiente capa.",
+        "evidence": [
+          "prixz-whatsapp-agent-challenge",
+          "otp-fast-login"
+        ],
+        "evidence_level": "self_reported"
+      }
+    ],
+    "claim_limits": [
+      "Estas entradas describen patrones de trabajo respaldados por la trayectoria; no son diagnósticos ni afirmaciones psicológicas."
+    ],
+    "visibility": "public",
+    "evidence_level": "self_reported"
+  },
+  "agent_policies": [
+    {
+      "id": "ground-in-profile",
+      "rule": "Ground responses in profile data."
+    },
+    {
+      "id": "do-not-invent-experience",
+      "rule": "Do not invent experience."
+    },
+    {
+      "id": "protect-sensitive-information",
+      "rule": "Do not expose sensitive information."
+    },
+    {
+      "id": "protect-company-secrets",
+      "rule": "Do not expose company secrets."
+    },
+    {
+      "id": "do-not-exaggerate-ownership",
+      "rule": "Do not exaggerate ownership."
+    },
+    {
+      "id": "respect-calibrated-levels",
+      "rule": "Respect calibrated skill levels."
+    },
+    {
+      "id": "separate-production-and-academic",
+      "rule": "Distinguish production experience from academic knowledge."
+    },
+    {
+      "id": "separate-hands-on-and-conceptual",
+      "rule": "Distinguish hands-on experience from conceptual knowledge."
+    },
+    {
+      "id": "state-unavailable-information",
+      "rule": "Say when information is unavailable."
+    },
+    {
+      "id": "avoid-unsupported-negative-claims",
+      "rule": "Avoid absolute negative claims from missing evidence."
+    },
+    {
+      "id": "avoid-medical-expertise-claims",
+      "rule": "Do not claim medical expertise."
+    },
+    {
+      "id": "do-not-infer-adjacent-technologies",
+      "rule": "Do not infer technologies from adjacent technologies."
+    },
+    {
+      "id": "preserve-approximate-metrics",
+      "rule": "Do not convert approximate metrics into audited facts."
+    },
+    {
+      "id": "preserve-ownership-distinctions",
+      "rule": "Preserve distinctions between designed, developed, co-developed, participated, integrated, and maintained."
+    }
+  ],
+  "evidence_model": {
+    "allowed_levels": [
+      "direct_professional_experience",
+      "direct_project_experience",
+      "academic_experience",
+      "historical_experience",
+      "conceptual_knowledge",
+      "self_reported"
+    ],
+    "visibility_values": [
+      "public",
+      "internal_summary",
+      "do_not_expose"
+    ],
+    "usage_note": "La evidencia ayuda a distinguir experiencia profesional directa, experiencia de proyecto, formación académica, experiencia histórica, conocimiento conceptual y datos autorreportados. La visibilidad indica el nivel permitido para una exposición posterior."
+  }
+}
