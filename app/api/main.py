@@ -1,4 +1,4 @@
-"""FastAPI application exposing the Phase 4 HTTP boundary."""
+"""FastAPI application exposing the Phase 4 and Phase 5 HTTP boundaries."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.agent.core import AgentCore, AgentInputError
+from app.api.open_responses import OpenResponsesAdapter
 from app.api.schemas import AgentPrepareRequest, AgentPrepareResponse, HealthResponse
 
 
@@ -14,10 +15,11 @@ def create_app(agent_core: AgentCore | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Reto IA Banorte — CV Agent",
-        version="0.4.0",
-        description="Phase 4 HTTP API for deterministic CV-agent preparation.",
+        version="0.5.0",
+        description="Phase 5 HTTP API for deterministic CV-agent preparation.",
     )
     app.state.agent_core = agent_core if agent_core is not None else AgentCore()
+    app.state.open_responses_adapter = OpenResponsesAdapter(app.state.agent_core)
 
     @app.exception_handler(AgentInputError)
     async def handle_agent_input_error(
@@ -38,6 +40,24 @@ def create_app(agent_core: AgentCore | None = None) -> FastAPI:
             max_results=payload.max_results,
         )
         return AgentPrepareResponse.from_turn(turn)
+
+    @app.post("/v1/responses")
+    async def create_open_response(request: Request) -> JSONResponse:
+        adapter: OpenResponsesAdapter = app.state.open_responses_adapter
+        try:
+            payload = await request.json()
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content=adapter.error_response(
+                    message="Request body must contain valid JSON.",
+                    param="input",
+                    code="invalid_input",
+                ),
+            )
+
+        body, status_code = adapter.create_response(payload)
+        return JSONResponse(status_code=status_code, content=body)
 
     return app
 
