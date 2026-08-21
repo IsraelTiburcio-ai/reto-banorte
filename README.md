@@ -6,15 +6,22 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 3 — Agent Core
+Phase 4 — HTTP API
 
-La Phase 3 introduce un `AgentCore` independiente de proveedor. El core valida consultas, fuerza retrieval público, limita la evidencia recuperada y prepara turnos grounded mediante un contrato estructurado que podrá consumir posteriormente un adaptador de LLM.
+La Phase 4 expone el `AgentCore` mediante una API HTTP delgada en FastAPI. La capa HTTP valida el contrato de entrada, serializa `PreparedAgentTurn` a JSON y traduce errores de input a respuestas HTTP sin mover reglas de retrieval, visibilidad o grounding fuera de sus capas existentes.
+
+Endpoints actuales:
+
+- `GET /health`
+- `POST /agent/prepare`
+
+`POST /agent/prepare` es un contrato interno del proyecto y **todavía no es Open Responses**. La compatibilidad con Open Responses corresponde a Phase 5.
 
 ## Arquitectura inicial
 
-- `api`: interfaz HTTP y endpoints compatibles con Open Responses.
+- `api`: interfaz HTTP delgada, schemas y serialización.
 - `agent`: política de comportamiento y orquestación provider-neutral del agente.
-- `models`: modelos internos y esquemas de request/response.
+- `models`: modelos internos y contratos provider-neutral.
 - `services`: lógica reutilizable e integraciones externas.
 - `core`: configuración, logging, seguridad y manejo de errores.
 - `data`: fuente de verdad estructurada del CV.
@@ -22,7 +29,27 @@ La Phase 3 introduce un `AgentCore` independiente de proveedor. El core valida c
 - `tests`: pruebas automatizadas.
 - `docs`: arquitectura, decisiones técnicas y diagramas.
 
-La capa de retrieval sigue siendo determinista y `AgentCore` solo prepara contexto público y reglas de comportamiento. Todavía no existe generación con LLM, HTTP API, Open Responses ni deployment.
+Flujo actual:
+
+`HTTP -> AgentCore -> ProfileService -> data/profile.json`
+
+`ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
+
+Todavía no existe generación con LLM, compatibilidad Open Responses ni deployment.
+
+## Ejecución local
+
+```bash
+uvicorn app.api.main:app --reload
+```
+
+Ejemplo:
+
+```bash
+curl -X POST http://127.0.0.1:8000/agent/prepare \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"experiencia con MCP","max_results":5}'
+```
 
 ## Roadmap
 
