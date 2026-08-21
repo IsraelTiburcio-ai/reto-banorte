@@ -112,7 +112,6 @@ class ProfileService:
         self._profile = self._load_profile()
         self._validate_profile(self._profile)
         self._indexes = self._build_indexes(self._profile)
-        self._relationship_terms = self._build_relationship_terms()
 
     def get_profile(
         self, visibility: VisibilityPolicy = "public"
@@ -153,15 +152,18 @@ class ProfileService:
         if not normalized_query:
             return []
 
+        relationship_terms = self._build_relationship_terms(visibility)
         results: list[SearchResult] = []
         for entity_type, entity_id, entity in self._iter_search_entities():
-            if not self._is_visible(entity, visibility):
+            visible_entity = self._visible_entity(entity, visibility)
+            if visible_entity is None:
                 continue
             score, matched_fields = self._score_entity(
                 entity_type,
                 entity_id,
-                entity,
+                visible_entity,
                 normalized_query,
+                relationship_terms,
             )
             if score <= 0:
                 continue
@@ -169,13 +171,10 @@ class ProfileService:
                 SearchResult(
                     entity_type=entity_type,
                     entity_id=entity_id,
-                    title=self._title_for(entity, entity_id),
+                    title=self._title_for(visible_entity, entity_id),
                     score=score,
                     matched_fields=matched_fields,
-                    data=cast(
-                        ProfileMapping,
-                        self._copy_nested(entity, visibility),
-                    ),
+                    data=visible_entity,
                 )
             )
 
@@ -264,6 +263,18 @@ class ProfileService:
         if entity is None or not self._is_visible(entity, visibility):
             raise EntityNotFoundError(entity_type, entity_id)
         return cast(ProfileMapping, self._copy_nested(entity, visibility))
+
+    def _visible_entity(
+        self, entity: ProfileMapping, visibility: VisibilityPolicy
+    ) -> ProfileMapping | None:
+        """Return the entity copy that is allowed to participate in a search."""
+
+        if not self._is_visible(entity, visibility):
+            return None
+        copied = self._copy_nested(entity, visibility)
+        if copied is _OMIT or not isinstance(copied, dict):
+            return None
+        return cast(ProfileMapping, copied)
 
     @staticmethod
     def _validate_policy(visibility: VisibilityPolicy) -> None:
@@ -380,7 +391,9 @@ class ProfileService:
             if isinstance(value, dict):
                 yield "document", key, cast(ProfileMapping, value)
 
-    def _build_relationship_terms(self) -> dict[tuple[str, str], list[str]]:
+    def _build_relationship_terms(
+        self, visibility: VisibilityPolicy
+    ) -> dict[tuple[str, str], list[str]]:
         terms: dict[tuple[str, str], list[str]] = {}
 
         def add(target_id: object, term: object) -> None:
@@ -393,14 +406,22 @@ class ProfileService:
             terms.setdefault(key, []).append(term)
 
         for entity_type, entity_id, entity in self._iter_search_entities():
+            visible_entity = self._visible_entity(entity, visibility)
+            if visible_entity is None:
+                continue
             if entity_type == "experience":
-                for project_id in self._string_list(entity.get("project_ids")):
-                    add(project_id, self._title_for(entity, entity_id))
+                for project_id in self._string_list(
+                    visible_entity.get("project_ids")
+                ):
+                    add(project_id, self._title_for(visible_entity, entity_id))
             if entity_type == "skill":
-                for reference in self._string_list(entity.get("evidence")):
-                    add(reference, self._title_for(entity, entity_id))
+                for reference in self._string_list(visible_entity.get("evidence")):
+                    add(reference, self._title_for(visible_entity, entity_id))
             if entity_type == "achievement":
-                add(entity.get("project_id"), self._title_for(entity, entity_id))
+                add(
+                    visible_entity.get("project_id"),
+                    self._title_for(visible_entity, entity_id),
+                )
 
         return terms
 
@@ -416,6 +437,7 @@ class ProfileService:
         entity_id: str,
         entity: ProfileMapping,
         normalized_query: str,
+        relationship_terms: dict[tuple[str, str], list[str]],
     ) -> tuple[float, tuple[str, ...]]:
         buckets: list[tuple[str, list[str], float, float]] = [
             ("id", [entity_id], 100.0, 90.0),
@@ -438,7 +460,7 @@ class ProfileService:
             target = context_values if key in self._CONTEXT_KEYS else body_values
             target.append((key, values))
 
-        relation_terms = self._relationship_terms.get((entity_type, entity_id), [])
+        relation_terms = relationship_terms.get((entity_type, entity_id), [])
         if relation_terms:
             context_values.append(("related", relation_terms))
 

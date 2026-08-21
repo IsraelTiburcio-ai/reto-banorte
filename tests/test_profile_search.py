@@ -1,9 +1,74 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from app.models.retrieval import SearchResult
 from app.services.profile_service import ProfileService
+from tests.test_profile_service import minimal_profile
+
+
+def visibility_profile() -> dict[str, object]:
+    profile = minimal_profile()
+    profile["projects"] = [
+        {
+            "id": "visible-project",
+            "visibility": "public",
+            "name": "Visible project",
+            "description": "Public project content",
+            "hidden_do_not_expose": {
+                "visibility": "do_not_expose",
+                "text": "nested-do-not-expose-term",
+            },
+            "hidden_internal_summary": {
+                "visibility": "internal_summary",
+                "text": "nested-internal-summary-term",
+            },
+        },
+        {
+            "id": "hidden-project",
+            "visibility": "do_not_expose",
+            "name": "root-do-not-expose-term",
+        },
+        {
+            "id": "internal-project",
+            "visibility": "internal_summary",
+            "name": "root-internal-summary-term",
+        },
+    ]
+    profile["skills"] = [
+        {
+            "id": "hidden-relation-skill",
+            "visibility": "do_not_expose",
+            "name": "hidden-only-relation-term",
+            "evidence": ["visible-project"],
+        },
+        {
+            "id": "internal-relation-skill",
+            "visibility": "internal_summary",
+            "name": "internal-only-relation-term",
+            "evidence": ["visible-project"],
+        },
+        {
+            "id": "visible-skill",
+            "visibility": "public",
+            "name": "Visible skill",
+        },
+    ]
+    return profile
+
+
+def service_from_visibility_fixture(test_case: unittest.TestCase) -> ProfileService:
+    temporary_directory = tempfile.TemporaryDirectory()
+    test_case.addCleanup(temporary_directory.cleanup)
+    profile_path = Path(temporary_directory.name) / "profile.json"
+    profile_path.write_text(
+        json.dumps(visibility_profile()),
+        encoding="utf-8",
+    )
+    return ProfileService(profile_path)
 
 
 class ProfileSearchTests(unittest.TestCase):
@@ -66,12 +131,67 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertEqual(self.service.search("   "), [])
 
     def test_search_does_not_return_hidden_entities(self) -> None:
-        self.assertTrue(
-            all(
-                result.entity_id not in {"internal-project", "hidden-project"}
-                for result in self.service.search("Internal")
+        service = service_from_visibility_fixture(self)
+        public_ids = {result.entity_id for result in service.search("term")}
+        self.assertNotIn("hidden-project", public_ids)
+        self.assertNotIn("internal-project", public_ids)
+
+    def test_restricted_nested_text_cannot_match_public_search(self) -> None:
+        service = service_from_visibility_fixture(self)
+        do_not_expose_ids = {
+            result.entity_id
+            for result in service.search("nested-do-not-expose-term")
+        }
+        internal_summary_ids = {
+            result.entity_id
+            for result in service.search("nested-internal-summary-term")
+        }
+        self.assertNotIn("visible-project", do_not_expose_ids)
+        self.assertNotIn("visible-project", internal_summary_ids)
+
+    def test_internal_summary_nested_text_is_available_explicitly(self) -> None:
+        service = service_from_visibility_fixture(self)
+        result_ids = {
+            result.entity_id
+            for result in service.search(
+                "nested-internal-summary-term",
+                visibility="internal_summary",
             )
-        )
+        }
+        self.assertIn("visible-project", result_ids)
+        do_not_expose_ids = {
+            result.entity_id
+            for result in service.search(
+                "nested-do-not-expose-term",
+                visibility="internal_summary",
+            )
+        }
+        self.assertNotIn("visible-project", do_not_expose_ids)
+
+    def test_hidden_relationships_cannot_rank_public_entities(self) -> None:
+        service = service_from_visibility_fixture(self)
+        public_hidden_relation_ids = {
+            result.entity_id
+            for result in service.search("hidden-only-relation-term")
+        }
+        self.assertNotIn("visible-project", public_hidden_relation_ids)
+        self.assertNotIn("hidden-relation-skill", public_hidden_relation_ids)
+
+        public_internal_relation_ids = {
+            result.entity_id
+            for result in service.search("internal-only-relation-term")
+        }
+        self.assertNotIn("visible-project", public_internal_relation_ids)
+
+        internal_relation_ids = {
+            result.entity_id
+            for result in service.search(
+                "internal-only-relation-term",
+                visibility="internal_summary",
+            )
+        }
+        self.assertIn("visible-project", internal_relation_ids)
+        self.assertIn("internal-relation-skill", internal_relation_ids)
 
 
 if __name__ == "__main__":
