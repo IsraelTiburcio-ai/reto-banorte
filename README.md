@@ -6,14 +6,14 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 2 — Profile Retrieval Layer
+Phase 3 — Agent Core
 
-La Phase 2 está implementada en la rama de trabajo: `data/profile.json` sigue siendo la fuente canónica y `ProfileService` permite cargarla, recuperar entidades por ID y realizar búsqueda lexical determinista.
+La Phase 3 introduce un `AgentCore` independiente de proveedor. El core valida consultas, fuerza retrieval público, limita la evidencia recuperada y prepara turnos grounded mediante un contrato estructurado que podrá consumir posteriormente un adaptador de LLM.
 
 ## Arquitectura inicial
 
 - `api`: interfaz HTTP y endpoints compatibles con Open Responses.
-- `agent`: configuración, instrucciones, definiciones de tools y orquestación del agente.
+- `agent`: política de comportamiento y orquestación provider-neutral del agente.
 - `models`: modelos internos y esquemas de request/response.
 - `services`: lógica reutilizable e integraciones externas.
 - `core`: configuración, logging, seguridad y manejo de errores.
@@ -22,7 +22,7 @@ La Phase 2 está implementada en la rama de trabajo: `data/profile.json` sigue s
 - `tests`: pruebas automatizadas.
 - `docs`: arquitectura, decisiones técnicas y diagramas.
 
-La capa de retrieval aplica reglas de visibilidad y no modifica la knowledge base en memoria. Todavía no existe LLM, agente, API, Open Responses ni deployment.
+La capa de retrieval sigue siendo determinista y `AgentCore` solo prepara contexto público y reglas de comportamiento. Todavía no existe generación con LLM, HTTP API, Open Responses ni deployment.
 
 ## Roadmap
 
