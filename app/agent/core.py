@@ -2,24 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 from app.agent.policy import DEFAULT_AGENT_POLICY
 from app.models.agent import AgentEvidence, AgentPolicy, PreparedAgentTurn
-from app.models.retrieval import SearchResult, VisibilityPolicy
 from app.services.profile_service import ProfileService
 
 
 class AgentInputError(ValueError):
     """Raised when a user query cannot be prepared safely."""
-
-
-class ProfileRetriever(Protocol):
-    """Minimal retrieval contract required by the agent core."""
-
-    def search(
-        self, query: str, visibility: VisibilityPolicy = "public"
-    ) -> list[SearchResult]: ...
 
 
 class AgentCore:
@@ -35,10 +24,12 @@ class AgentCore:
 
     def __init__(
         self,
-        retriever: ProfileRetriever | None = None,
+        profile_service: ProfileService | None = None,
         policy: AgentPolicy = DEFAULT_AGENT_POLICY,
     ) -> None:
-        self._retriever = retriever if retriever is not None else ProfileService()
+        self._profile_service = (
+            profile_service if profile_service is not None else ProfileService()
+        )
         self._policy = policy
 
     @property
@@ -60,7 +51,7 @@ class AgentCore:
 
         # The agent boundary is intentionally public-only. Callers cannot elevate
         # retrieval visibility through this API.
-        results = self._retriever.search(normalized_query, visibility="public")
+        results = self._profile_service.search(normalized_query, visibility="public")
         selected_results = results[:max_results]
         evidence = tuple(
             AgentEvidence.from_search_result(result) for result in selected_results
