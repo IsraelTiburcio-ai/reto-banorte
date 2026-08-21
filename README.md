@@ -6,9 +6,9 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 1 — Professional Knowledge Base
+Phase 2 — Profile Retrieval Layer
 
-La Phase 1 está implementada: `data/profile.json` es la fuente canónica y estructurada del perfil profesional.
+La Phase 2 está implementada en la rama de trabajo: `data/profile.json` sigue siendo la fuente canónica y `ProfileService` permite cargarla, recuperar entidades por ID y realizar búsqueda lexical determinista.
 
 ## Arquitectura inicial
 
@@ -22,7 +22,7 @@ La Phase 1 está implementada: `data/profile.json` es la fuente canónica y estr
 - `tests`: pruebas automatizadas.
 - `docs`: arquitectura, decisiones técnicas y diagramas.
 
-En esta fase todavía no existe retrieval, agente, LLM ni API. El archivo de perfil contiene la knowledge base; no implementa lógica funcional.
+La capa de retrieval aplica reglas de visibilidad y no modifica la knowledge base en memoria. Todavía no existe LLM, agente, API, Open Responses ni deployment.
 
 ## Roadmap
 
