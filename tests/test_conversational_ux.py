@@ -189,6 +189,7 @@ class ConversationalUXTests(unittest.TestCase):
     def test_colloquial_professional_questions_retrieve_public_evidence(self) -> None:
         cases = (
             ("y que estudia este wey?", {"unam-fes-acatlan-mac"}),
+            ("cuentame mas o menos su trayectoria escolar", {"unam-fes-acatlan-mac"}),
             ("por que lo contratarias?", {"professional_summary"}),
             ("cambiando de tema sabe scrapear o no?", {"web-scraping"}),
             ("y de nube q sabe?", {"aws", "gcp", "oracle-cloud"}),
