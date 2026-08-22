@@ -6,10 +6,9 @@ Parley replays the previous Open Responses output as an assistant message.
 That message can contain transport metadata such as an identifier, a message
 type, a lifecycle status, and output-text annotations. The existing adapter
 was intentionally conservative, but rejecting these valid structural fields
-prevented transcript replay. The same integration also exposed two retrieval
-usability gaps: standalone greetings should not require a provider, and broad
-career, project, and identity questions should not rank accidental generic
-matches above the relevant profile sections.
+prevented transcript replay. The same integration exposed that lexical
+retrieval should remain a bounded evidence mechanism rather than becoming a
+conversation classifier for greetings, broad questions or coreference.
 
 ## Decision
 
@@ -26,14 +25,11 @@ include:
 - output-text `annotations` represented as a list of objects.
 
 These fields are validated and retained only long enough to extract message
-text. They are not represented in `ConversationMessage`, cannot reach
-`AgentCore`, and cannot reach the provider prompt. The last textual user
-message is the current query. For a bounded set of clearly context-dependent
-follow-ups identified by normalized anaphoric markers (demonstratives,
-referential `cuál/cuáles`, continuation markers, and object-reference verbs),
-the adapter may retry retrieval once with up to three user messages total:
-the last two prior user messages plus the current query. The returned turn
-keeps the current user question.
+text. They are not represented in `ConversationMessage` or sent as transport
+metadata to `AgentCore`. The last textual user message is the current query.
+`AgentCore` passes only that query to the deterministic public retriever; the
+provider receives the bounded transcript separately for natural-language
+interpretation.
 Assistant text and metadata remain structural context only and are never used
 as retrieval instructions or factual evidence. This request-scoped fallback is
 not conversation memory and does not change policy, visibility, evidence
@@ -41,46 +37,19 @@ limits, or provider behavior. `system` and `developer` roles, stateful
 continuation IDs, and other unsupported Open Responses capabilities remain
 rejected.
 
-The adapter does not add persistent memory or heuristic answer generation.
-The bounded marker detection only decides whether to enrich the current
-retrieval query with recent user text. `store` remains stateless compatibility
+The adapter does not add persistent memory, heuristic answer generation or an
+intent classifier. `store` remains stateless compatibility
 metadata: absent, `null`, and `false` are accepted; `true` remains rejected.
 
-## Deterministic social and meta handling
+## Deterministic retrieval boundary
 
-The adapter recognizes standalone normalized greetings such as `hola`,
-`hello`, `hey`, and the supported Spanish greetings. It also handles a small
-deterministic set of thanks, goodbyes, agent identity/capability questions,
-sensitive-data requests, and explicit out-of-scope prompts. Punctuation, case,
-whitespace, and accents are normalized for these checks. These local responses
-perform no retrieval and no provider call. A greeting with additional question
-text is not a shortcut; it follows the normal grounded pipeline.
-
-The deterministic responses are deliberately narrow and do not claim to be a
-general conversational model. Sensitive and out-of-scope requests receive a
-safe domain redirect with `insufficient_evidence` status; no restricted data is
-retrieved or exposed.
-
-## Deterministic overview retrieval
-
-`ProfileService` retains exact ID, title/name, context, body, and relationship
-ranking for ordinary lexical queries. When a bounded overview intent is
-recognized, it returns visible copies in canonical profile order:
-
-- project overviews return public project entities;
-- academic and professional project follow-ups use bounded profile-derived
-  scopes, without treating prior assistant claims as facts;
-- career overviews prioritize `career_story`, `professional_summary`,
-  `identity`, and then public experience entities;
-- identity overviews return `identity`, `professional_summary`, and
-  `career_story`.
-
-The intent vocabulary is deliberately small and token-based. It is not fuzzy
-matching, embeddings, a vector database, or an LLM. Unknown terms prevent the
-overview shortcut, so accidental words do not silently broaden retrieval.
-Every candidate still passes through the existing visibility copy boundary;
-`internal_summary`, `do_not_expose`, restricted nested text, and hidden
-relationship origins cannot participate in public retrieval or ranking.
+`ProfileService` retains exact ID, title/name, context, body and relationship
+ranking for ordinary lexical queries, plus conservative meaningful-token
+fallback. It does not implement social handling, broad intent routing, aliases,
+slang, phrase lists or coreference. Every candidate still passes through the
+existing visibility copy boundary; `internal_summary`, `do_not_expose`,
+restricted nested text, and hidden relationship origins cannot participate in
+public retrieval or ranking.
 
 ## Compatibility evidence and scope
 
@@ -111,9 +80,10 @@ is read only for the request header and is never printed.
 
 Transcript metadata no longer blocks replay, while transcript text remains
 untrusted data rather than instructions. Follow-up questions that depend on
-coreference, such as `¿Y cuál usabas más?`, may still have limited retrieval;
-the adapter only performs the bounded prior-user retry described above and does
-not implement conversational memory or heuristic answer generation.
+coreference, such as `¿Y cuál usabas más?`, are given to the provider together
+with the bounded transcript and public context; lexical retrieval may be empty
+or partial, but no deterministic classifier attempts to resolve the reference.
+The request remains stateless and does not implement conversational memory.
 Overview ordering is deterministic profile order, not an inferred claim about
 which project is objectively most important. Generated factuality and
 grounding still require the existing offline checks and, when authorized,

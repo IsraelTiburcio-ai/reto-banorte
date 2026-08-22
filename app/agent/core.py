@@ -43,6 +43,11 @@ class AgentCore:
 
         return self._profile_service.public_identity_name()
 
+    def public_profile(self) -> dict[str, object]:
+        """Return a detached public profile context for the trusted adapter."""
+
+        return self._profile_service.get_profile("public")
+
     @property
     def is_ready(self) -> bool:
         """Report whether the initialized local retrieval boundary is usable."""

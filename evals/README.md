@@ -69,6 +69,10 @@ Los casos auditables están en `evals/cases.json`. Cada expectativa queda
 clasificada por su check offline, por revisión live/manual o por una futura
 evaluación semántica. No se almacenan respuestas LLM como ground truth.
 
-La limitación de follow-up `¿Y cuál usabas más?` permanece visible como fallo
-conocido de retrieval sin coreferencia; no se modifica el agente para mejorar
-el score. No se usa LLM-as-a-judge en Phase 7.
+El caso de follow-up `¿Y cuál usabas más?` observa únicamente el contrato
+determinista de retrieval. El proveedor recibe la pregunta, el contexto
+público canónico, la evidencia lexical disponible y el transcript acotado;
+la resolución lingüística, la coreferencia y la síntesis se mantienen como
+revisión generada, no como un supuesto PASS/FAIL offline. No se agregan aliases,
+slang, diccionarios de conversación ni un clasificador de intención al
+retriever. No se usa LLM-as-a-judge en Phase 7.

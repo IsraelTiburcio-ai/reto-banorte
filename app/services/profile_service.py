@@ -62,193 +62,6 @@ class ProfileService:
         ("career_story", "Career story"),
         ("working_style", "Working style"),
     )
-    _PROJECT_OVERVIEW_TERMS = {
-        "are",
-        "cuales",
-        "cual",
-        "main",
-        "mas",
-        "most",
-        "overview",
-        "academic",
-        "academics",
-        "academico",
-        "academicos",
-        "algunos",
-        "algunas",
-        "project",
-        "projects",
-        "proyecto",
-        "proyectos",
-        "principal",
-        "principales",
-        "relevant",
-        "relevance",
-        "relevante",
-        "relevantes",
-        "importante",
-        "importantes",
-        "important",
-        "profesionales",
-        "destaca",
-        "destacas",
-        "destacado",
-        "destacados",
-        "demuestra",
-        "capacidad",
-        "mejor",
-        "nivel",
-        "tecnico",
-    }
-    _CAREER_OVERVIEW_TERMS = {
-        "story",
-        "trayectoria",
-        "recorrido",
-        "carrera",
-        "camino",
-        "career",
-        "decidio",
-        "decision",
-        "dedicarse",
-        "enfoque",
-        "llevo",
-        "llego",
-        "motivacion",
-        "historia",
-        "transicion",
-        "ia",
-        "inteligencia",
-        "artificial",
-        "trabajar",
-        "trabajo",
-        "evolucionado",
-        "evolucion",
-        "profesionalmente",
-        "profesional",
-        "sido",
-    }
-    _PROFESSIONAL_OVERVIEW_TERMS = {
-        "aporta",
-        "capacidad",
-        "carrera",
-        "contratar",
-        "contrataria",
-        "contratarias",
-        "dedica",
-        "dedicarse",
-        "diferencia",
-        "diferente",
-        "entrevista",
-        "experiencia",
-        "fuerte",
-        "fortaleza",
-        "fortalezas",
-        "hecho",
-        "ia",
-        "junior",
-        "laboral",
-        "mejor",
-        "perfil",
-        "profesional",
-        "profesionalmente",
-        "proyecto",
-        "proyectos",
-        "relevante",
-        "relevantes",
-        "rol",
-        "roles",
-        "trabaja",
-        "trabajado",
-        "trabajar",
-        "trabajo",
-        "tipo",
-        "equipo",
-        "destacarias",
-        "valor",
-        "ves",
-        "vendelo",
-        "vendemelo",
-        "vender",
-        "reclutador",
-        "recruiter",
-        "mayor",
-        "nivel",
-        "tecnico",
-    }
-    _REPRESENTATION_OVERVIEW_TERMS = {
-        "aporta",
-        "capacidad",
-        "contratar",
-        "diferencia",
-        "diferente",
-        "entrevista",
-        "fuerte",
-        "fortaleza",
-        "fortalezas",
-        "contrataria",
-        "contratarias",
-        "junior",
-        "relevante",
-        "rol",
-        "roles",
-        "valor",
-        "vendelo",
-        "vendemelo",
-        "vender",
-        "reclutador",
-        "recruiter",
-        "mayor",
-        "nivel",
-        "tecnico",
-    }
-    _IDENTITY_OVERVIEW_TERMS = {
-        "about",
-        "can",
-        "contar",
-        "dime",
-        "quien",
-        "who",
-        "decir",
-        "cuentame",
-        "hablame",
-        "resumen",
-        "perfil",
-        "dame",
-    }
-    _EDUCATION_OVERVIEW_TERMS = {
-        "academica",
-        "academico",
-        "carrera",
-        "colegio",
-        "donde",
-        "educacion",
-        "escuela",
-        "escolar",
-        "estudio",
-        "estudios",
-        "estudia",
-        "estudiar",
-        "formacion",
-        "institucion",
-        "licenciatura",
-        "preparatoria",
-        "school",
-        "studies",
-        "trayectoria",
-        "universidad",
-    }
-    _CLOUD_GENERIC_TERMS = {"cloud", "computing", "nube"}
-    _CLOUD_PROVIDER_ALIASES = {
-        "aws": {"aws"},
-        "gcp": {"gcp"},
-        "oracle": {"oracle"},
-    }
-    _CLOUD_PROVIDER_MARKERS = {
-        "aws": {"aws", "amazon"},
-        "gcp": {"gcp", "google"},
-        "oracle": {"oracle"},
-    }
-    _OVERVIEW_NAME_TERMS = {"israel", "tiburcio"}
     _REQUIRED_SECTIONS: tuple[str, ...] = (
         "metadata",
         "identity",
@@ -291,129 +104,6 @@ class ProfileService:
         "tools_used",
         "workflow",
     }
-    _QUERY_STOPWORDS = {
-        "a",
-        "about",
-        "al",
-        "and",
-        "area",
-        "are",
-        "ahora",
-        "as",
-        "can",
-        "con",
-        "como",
-        "cosas",
-        "cual",
-        "cuales",
-        "cuentame",
-        "cuál",
-        "cuáles",
-        "de",
-        "del",
-        "decir",
-        "contar",
-        "dame",
-        "dime",
-        "deberia",
-        "el",
-        "en",
-        "es",
-        "ese",
-        "esa",
-        "eso",
-        "esos",
-        "esas",
-        "ello",
-        "ellos",
-        "ellas",
-        "estos",
-        "estas",
-        "experience",
-        "experiencia",
-        "for",
-        "hacer",
-        "hacerte",
-        "fue",
-        "fueron",
-        "gano",
-        "ganaron",
-        "ha",
-        "has",
-        "have",
-        "hacia",
-        "hace",
-        "bueno",
-        "hecho",
-        "how",
-        "israel",
-        "q",
-        "la",
-        "las",
-        "lo",
-        "los",
-        "me",
-        "ideas",
-        "mas",
-        "menos",
-        "o",
-        "of",
-        "para",
-        "por",
-        "please",
-        "podria",
-        "puede",
-        "puedes",
-        "qué",
-        "que",
-        "s",
-        "se",
-        "his",
-        "her",
-        "their",
-        "which",
-        "who",
-        "sido",
-        "si",
-        "son",
-        "sobre",
-        "sugiere",
-        "sugieres",
-        "sugiero",
-        "su",
-        "sus",
-        "te",
-        "tell",
-        "tengo",
-        "tiene",
-        "pregunta",
-        "preguntas",
-        "preguntarte",
-        "the",
-        "yo",
-        "wey",
-        "este",
-        "osea",
-        "cabron",
-        "aprendiendo",
-        "fuera",
-        "todo",
-        "dirias",
-        "va",
-        "cawn",
-        "gracias",
-        "corto",
-        "this",
-        "un",
-        "una",
-        "cuando",
-        "tomar",
-        "tomo",
-        "what",
-        "with",
-        "y",
-    }
-
     def __init__(self, profile_path: str | Path | None = None) -> None:
         self.profile_path = (
             Path(profile_path).expanduser().resolve()
@@ -480,11 +170,9 @@ class ProfileService:
         if not normalized_query:
             return []
 
-        query_terms = self._meaningful_query_terms(query)
-        broad_intent = self._detect_broad_intent(normalized_query, query_terms)
-        if broad_intent is not None:
-            return self._search_broad_intent(broad_intent, visibility)
-        cloud_provider = self._detect_cloud_provider(query_terms)
+        query_terms = self._meaningful_query_terms(query, visibility)
+        if not query_terms:
+            return []
 
         relationship_terms = self._build_relationship_terms(visibility)
         results: list[SearchResult] = []
@@ -514,14 +202,6 @@ class ProfileService:
 
         results.sort(key=lambda item: (-item.score, item.entity_type, item.entity_id))
         if results:
-            if cloud_provider is not None:
-                scoped_results = [
-                    result
-                    for result in results
-                    if self._matches_cloud_provider(result.data, cloud_provider)
-                ]
-                if scoped_results:
-                    return scoped_results
             return results
 
         if not query_terms:
@@ -566,327 +246,7 @@ class ProfileService:
         token_results.sort(
             key=lambda item: (-item.score, item.entity_type, item.entity_id)
         )
-        if cloud_provider is not None:
-            scoped_token_results = [
-                result
-                for result in token_results
-                if self._matches_cloud_provider(result.data, cloud_provider)
-            ]
-            if scoped_token_results:
-                return scoped_token_results
-            return self._search_cloud_provider(cloud_provider, visibility)
         return token_results
-
-    @classmethod
-    def _detect_cloud_provider(cls, query_terms: list[str]) -> str | None:
-        terms = set(query_terms)
-        for provider, markers in cls._CLOUD_PROVIDER_MARKERS.items():
-            if terms.intersection(markers):
-                return provider
-        return None
-
-    @classmethod
-    def _matches_cloud_provider(
-        cls, entity: ProfileMapping, provider: str
-    ) -> bool:
-        contexts = {
-            cls._normalize(value)
-            for value in cls._flatten_strings(entity.get("contexts"))
-        }
-        if "cloud computing" not in contexts:
-            return False
-        name = cls._normalize(
-            " ".join(cls._values_for_keys(entity, {"name", "title"}))
-        )
-        return bool(
-            set(cls._tokenize(name)).intersection(
-                cls._CLOUD_PROVIDER_ALIASES[provider]
-            )
-        )
-
-    def _search_cloud_provider(
-        self, provider: str, visibility: VisibilityPolicy
-    ) -> list[SearchResult]:
-        results: list[SearchResult] = []
-        for entity_type, entity_id, entity in self._iter_search_entities():
-            if entity_type != "skill":
-                continue
-            visible_entity = self._visible_entity(entity, visibility)
-            if visible_entity is None or not self._matches_cloud_provider(
-                visible_entity, provider
-            ):
-                continue
-            results.append(
-                SearchResult(
-                    entity_type=entity_type,
-                    entity_id=entity_id,
-                    title=self._title_for(visible_entity, entity_id),
-                    score=100.0,
-                    matched_fields=("name/title",),
-                    data=visible_entity,
-                )
-            )
-        return results
-
-    @classmethod
-    def _detect_broad_intent(
-        cls, normalized_query: str, query_terms: list[str]
-    ) -> str | None:
-        """Recognize bounded overview requests without matching question noise."""
-
-        raw_terms = set(cls._tokenize(normalized_query))
-        terms = set(query_terms)
-        common_terms = cls._QUERY_STOPWORDS | cls._OVERVIEW_NAME_TERMS
-
-        if (
-            raw_terms.intersection(
-                {"academico", "academicos", "academic", "academics"}
-            )
-            and raw_terms.intersection(
-                {"proyecto", "proyectos", "project", "projects"}
-            )
-            and raw_terms
-            <= cls._PROJECT_OVERVIEW_TERMS
-            | common_terms
-            | {"academic", "academics", "academico", "academicos", "what", "which"}
-        ):
-            return "academic_project_overview"
-
-        if (
-            raw_terms.intersection(
-                {"proyecto", "proyectos", "project", "projects"}
-            )
-            and raw_terms.intersection({"profesional", "profesionales", "prixz"})
-            and raw_terms
-            <= cls._PROJECT_OVERVIEW_TERMS
-            | common_terms
-            | {"profesional", "prixz", "which", "what"}
-        ):
-            return "professional_project_overview"
-
-        if (
-            raw_terms.intersection(cls._PROJECT_OVERVIEW_TERMS)
-            and raw_terms
-            <= cls._PROJECT_OVERVIEW_TERMS | common_terms | {"which", "what"}
-        ):
-            return "project_overview"
-
-        if (
-            terms
-            and raw_terms.intersection(cls._REPRESENTATION_OVERVIEW_TERMS)
-            and raw_terms
-            <= cls._PROFESSIONAL_OVERVIEW_TERMS
-            | cls._QUERY_STOPWORDS
-            | cls._OVERVIEW_NAME_TERMS
-            | {"what", "which", "why", "how", "would", "should", "the"}
-        ):
-            return "professional_representation_overview"
-
-        if (
-            terms
-            and raw_terms.intersection(cls._PROFESSIONAL_OVERVIEW_TERMS)
-            and raw_terms
-            <= cls._PROFESSIONAL_OVERVIEW_TERMS
-            | cls._QUERY_STOPWORDS
-            | cls._OVERVIEW_NAME_TERMS
-            | {"what", "which", "why", "how", "would", "should", "the"}
-        ):
-            return "professional_overview"
-
-        if (
-            raw_terms.intersection(
-                {"proyecto", "proyectos", "project", "projects"}
-            )
-            and raw_terms
-            <= cls._PROJECT_OVERVIEW_TERMS
-            | common_terms
-            | {"trayectoria", "trajectory", "which", "what"}
-        ):
-            return "project_overview"
-
-        if (
-            raw_terms.intersection(cls._CAREER_OVERVIEW_TERMS)
-            and raw_terms
-            <= cls._CAREER_OVERVIEW_TERMS | common_terms | {"what", "how", "has"}
-        ):
-            return "career_overview"
-
-        if (
-            raw_terms.intersection(cls._IDENTITY_OVERVIEW_TERMS)
-            and raw_terms
-            <= cls._IDENTITY_OVERVIEW_TERMS
-            | common_terms
-            | {"what", "which", "who", "is"}
-        ):
-            return "identity_overview"
-
-        education_markers = raw_terms.intersection(
-            cls._EDUCATION_OVERVIEW_TERMS
-            | {"academica", "academico", "academic", "school", "studies"}
-        )
-        if education_markers and (
-            "trayectoria" in raw_terms
-            or raw_terms.intersection(
-                {
-                    "escolar",
-                    "formacion",
-                    "estudio",
-                    "estudios",
-                    "estudia",
-                    "estudiar",
-                    "educacion",
-                    "universidad",
-                    "escuela",
-                    "preparatoria",
-                    "licenciatura",
-                    "school",
-                    "studies",
-                }
-            )
-        ) and raw_terms <= (
-            cls._EDUCATION_OVERVIEW_TERMS
-            | cls._QUERY_STOPWORDS
-            | cls._OVERVIEW_NAME_TERMS
-            | {"academic", "school", "studies", "what", "which", "has"}
-        ):
-            return "education_overview"
-
-        if (
-            raw_terms.intersection(cls._CLOUD_GENERIC_TERMS)
-            and raw_terms
-            <= cls._CLOUD_GENERIC_TERMS
-            | cls._QUERY_STOPWORDS
-            | cls._OVERVIEW_NAME_TERMS
-            | {"sabe", "saber", "conoce", "conocimiento", "nivel", "what"}
-        ):
-            return "cloud_overview"
-
-        # A one-token meaningful query such as ``proyectos`` should still be
-        # useful, while an arbitrary noise-only query remains empty.
-        if terms == {"proyectos"} or terms == {"proyecto"}:
-            return "project_overview"
-        return None
-
-    def _search_broad_intent(
-        self, intent: str, visibility: VisibilityPolicy
-    ) -> list[SearchResult]:
-        """Return ordered, visible evidence for a bounded overview request."""
-
-        visible_entities = {
-            (entity_type, entity_id): visible_entity
-            for entity_type, entity_id, entity in self._iter_search_entities()
-            if (visible_entity := self._visible_entity(entity, visibility)) is not None
-        }
-        if intent == "education_overview":
-            visible_entities.update(
-                {
-                    (entity_type, entity_id): visible_entity
-                    for entity_type, entity_id, entity in self._iter_education_entities()
-                    if (visible_entity := self._visible_entity(entity, visibility)) is not None
-                }
-            )
-
-        if intent == "project_overview":
-            ordered_keys = [
-                key for key in visible_entities if key[0] == "project"
-            ]
-        elif intent == "academic_project_overview":
-            ordered_keys = [
-                key
-                for key, entity in visible_entities.items()
-                if key[0] == "project" and self._is_academic_project(entity)
-            ]
-        elif intent == "professional_project_overview":
-            ordered_keys = [
-                key
-                for key, entity in visible_entities.items()
-                if key[0] == "project" and not self._is_academic_project(entity)
-            ]
-        elif intent in {"professional_overview", "professional_representation_overview"}:
-            preferred_keys = [
-                ("document", "career_story"),
-                ("document", "professional_summary"),
-                ("document", "identity"),
-                ("experience", "prixz"),
-            ]
-            ordered_keys = [key for key in preferred_keys if key in visible_entities]
-            ordered_keys.extend(
-                key
-                for key in visible_entities
-                if key[0] == "experience" and key not in ordered_keys
-            )
-            ordered_keys.extend(
-                key
-                for key in visible_entities
-                if key[0] == "project" and key not in ordered_keys
-            )
-        elif intent == "career_overview":
-            preferred_types = [
-                ("document", "career_story"),
-                ("document", "professional_summary"),
-                ("document", "identity"),
-                ("experience", "prixz"),
-            ]
-            ordered_keys = [
-                key for key in preferred_types if key in visible_entities
-            ]
-            ordered_keys.extend(
-                key
-                for key in visible_entities
-                if key[0] == "experience" and key not in ordered_keys
-            )
-        elif intent == "identity_overview":
-            preferred_types = [
-                ("document", "identity"),
-                ("document", "professional_summary"),
-                ("document", "career_story"),
-            ]
-            ordered_keys = [
-                key for key in preferred_types if key in visible_entities
-            ]
-        elif intent == "education_overview":
-            ordered_keys = [
-                key for key in visible_entities if key[0] == "education"
-            ]
-        elif intent == "cloud_overview":
-            ordered_keys = [
-                key
-                for key, entity in visible_entities.items()
-                if key[0] == "skill"
-                and "cloud computing" in {
-                    self._normalize(value)
-                    for value in self._flatten_strings(entity.get("contexts"))
-                }
-            ]
-        else:
-            return []
-
-        return [
-            SearchResult(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                title=self._title_for(visible_entities[(entity_type, entity_id)], entity_id),
-                score=60.0 - (index * 0.01),
-                matched_fields=("overview",),
-                data=visible_entities[(entity_type, entity_id)],
-            )
-            for index, (entity_type, entity_id) in enumerate(ordered_keys)
-        ]
-
-    @classmethod
-    def _is_academic_project(cls, entity: ProfileMapping) -> bool:
-        tokens = cls._tokenize(
-            cls._normalize(" ".join(cls._flatten_strings(entity)))
-        )
-        token_set = set(tokens)
-        if token_set.intersection(
-            {"academico", "academica", "hackathon", "estudiantes", "unam"}
-        ):
-            return True
-        return any(
-            tuple(tokens[index : index + 3]) == ("ios", "development", "lab")
-            for index in range(max(0, len(tokens) - 2))
-        )
 
     def _load_profile(self) -> ProfileMapping:
         try:
@@ -1290,10 +650,7 @@ class ProfileService:
             if not normalized_value:
                 continue
             value_tokens = cls._tokenize(normalized_value)
-            if token not in value_tokens and not any(
-                cls._token_stem(value_token) == cls._token_stem(token)
-                for value_token in value_tokens
-            ):
+            if token not in value_tokens:
                 continue
             value_score = (
                 exact_score if normalized_value == token else contains_score
@@ -1301,16 +658,44 @@ class ProfileService:
             best = max(best, value_score)
         return best
 
-    @classmethod
-    def _meaningful_query_terms(cls, value: str) -> list[str]:
-        tokenized = cls._tokenize(value)
-        terms = [token for token in tokenized if token not in cls._QUERY_STOPWORDS]
-        if len(tokenized) > 1:
-            terms = [
-                token
-                for token in terms
-                if not token.isdigit() and len(token) > 1
-            ]
+    def _meaningful_query_terms(
+        self, value: str, visibility: VisibilityPolicy
+    ) -> list[str]:
+        """Keep lexical terms without a conversational vocabulary.
+
+        Natural-language fallback should not rank documents from one- or
+        two-character function words. Tokens with at least four characters
+        remain available for ordinary terms. Short technical acronyms remain
+        available when they are visibly represented by an uppercase query
+        token or by a public entity ID/name; this avoids maintaining a
+        technology dictionary while preventing incidental words such as
+        ``más`` from becoming evidence.
+        """
+
+        short_profile_tokens: set[str] = set()
+        for _entity_type, entity_id, entity in self._iter_search_entities():
+            visible_entity = self._visible_entity(entity, visibility)
+            if visible_entity is None:
+                continue
+            short_profile_tokens.update(self._tokenize(entity_id))
+            for title_value in self._values_for_keys(
+                visible_entity, {"name", "title"}
+            ):
+                short_profile_tokens.update(self._tokenize(title_value))
+
+        raw_tokens = re.sub(r"[^\w]+", " ", value, flags=re.UNICODE).split()
+        terms = []
+        for raw_token in raw_tokens:
+            token = self._normalize(raw_token)
+            if token.isdigit() or len(token) < 3:
+                continue
+            if (
+                len(token) == 3
+                and not raw_token.isupper()
+                and token not in short_profile_tokens
+            ):
+                continue
+            terms.append(token)
         return list(dict.fromkeys(terms))
 
     @classmethod
@@ -1318,17 +703,6 @@ class ProfileService:
         normalized = cls._normalize(value)
         tokenized = re.sub(r"[^\w]+", " ", normalized, flags=re.UNICODE)
         return [token for token in tokenized.split() if token]
-
-    @staticmethod
-    def _token_stem(token: str) -> str:
-        """Apply a small suffix normalization for natural-language fallback."""
-
-        normalized = token.casefold()
-        suffixes = ("iendo", "ando", "ing", "ear", "ar", "er", "ir", "es", "s")
-        for suffix in suffixes:
-            if normalized.endswith(suffix) and len(normalized) - len(suffix) >= 4:
-                return normalized[: -len(suffix)]
-        return normalized
 
     @staticmethod
     def _normalize(value: str) -> str:

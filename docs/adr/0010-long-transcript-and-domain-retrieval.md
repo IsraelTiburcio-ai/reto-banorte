@@ -53,11 +53,13 @@ as conversation history and as the explicit current question.
 
 ## Retrieval context versus generation context
 
-Retrieval remains stateless and public-only. For a clearly referential
-follow-up, only recent user messages from the bounded history can enrich the
-retrieval query. Assistant text is never used as a retrieval term, evidence,
-policy, or trusted factual source. Independent questions perform ordinary
-current-query retrieval and do not inherit the previous topic.
+Retrieval remains stateless and public-only. `AgentCore` passes only the
+current user question to `ProfileService`; it does not classify intent, resolve
+coreference, or enrich a retrieval query from transcript text. Assistant text
+is never used as a retrieval term, evidence, policy, or trusted factual source.
+The provider receives the bounded transcript separately and is responsible for
+natural-language interpretation of follow-ups, while factual claims remain
+grounded in the public context and evidence supplied by the trusted layers.
 
 Generation may receive the bounded recent user/assistant history as
 conversation data so a provider can answer naturally. The prompt continues to
@@ -69,18 +71,13 @@ is introduced. Every request remains self-contained.
 
 ## Deterministic domain coverage
 
-The formatter recognizes capability questions through normalized question and
-asking terms, including requests for suggested questions or topics. These
-requests return the existing safe capability response without retrieval or a
-provider call.
-
-`ProfileService` adds bounded overview retrieval for education/formación and
-generic cloud/nube questions using existing public profile data. Education
-results are formal education and academic-origin records. Generic cloud
-results are the documented AWS, GCP, and Oracle Cloud skill records. A direct
-provider query such as AWS retains the existing lexical ranking and calibrated
-claim limits. No new profile facts, provider inference, or DevOps/SRE claim is
-introduced.
+`ProfileService` remains a lexical retriever over canonical public data. Exact
+IDs, names, titles, existing substring ranking and deterministic token fallback
+remain available; broad intent routing, conversational aliases and provider-
+free response formatting are intentionally not part of this layer. The
+provider receives a detached public profile context in addition to specific
+retrieved evidence, so it can handle broad, social and follow-up questions
+without moving retrieval or visibility policy into the HTTP adapter.
 
 Academic projects remain a separate scope from education. Visibility filtering,
 nested filtering, relationship filtering, and public-only AgentCore behavior

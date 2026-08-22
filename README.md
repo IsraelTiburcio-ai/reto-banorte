@@ -230,11 +230,12 @@ transport metadata, then discarded before `AgentCore` or the provider prompt;
 only message roles and text remain. `system` and `developer` roles,
 stateful continuation, and unsupported capabilities remain rejected.
 
-Standalone greetings (`hola`, `hello`, `hey`, and the supported Spanish
-greetings), thanks, goodbyes, and a small set of agent meta questions use fixed
-local responses without retrieval or a provider call. Sensitive and explicit
-out-of-scope prompts receive a safe domain redirect. A greeting followed by a
-question uses the normal grounded pipeline.
+All valid textual requests use the normal grounded pipeline and invoke the
+configured provider, including greetings, identity, social, out-of-scope and
+follow-up questions. The adapter does not contain a conversational intent
+classifier or a catalog of fixed answers. Safety and visibility remain
+enforced by the trusted policy, `AgentCore`, `ProfileService` and provider
+instructions.
 
 The auditable pre-Banorte QA fixture is `evals/pre_banorte_cases.json` (30
 cases). Run `python3 scripts/pre_banorte_smoke.py` for the default offline
@@ -242,39 +243,42 @@ validation; it makes zero HTTP/provider calls and does not use an LLM judge.
 Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
 intended; generated-answer cases are reported for manual review.
 
-The lexical retriever also has bounded deterministic overview modes for
-identity, career, education, cloud skills, academic-project,
-professional-project, and project questions in Spanish and English. Clearly
-referential follow-ups may use up to three user messages total (the last two
-prior user messages plus the current one) to enrich retrieval. Independent
-questions are not retried with prior context. Assistant text is never treated
-as evidence or retrieval instructions. A bounded recent transcript may still be
-provided to generation as conversation data, but every factual claim must come
-from public evidence. Results remain ordered public evidence copies only; they
-do not infer dates, ownership, relevance, skills, or technologies that are not
-present in the profile.
+The lexical retriever keeps exact ID, name/title, substring, context and
+deterministic token matching for the current query. It does not classify
+intent, resolve coreference, or maintain a second conversational vocabulary.
+Assistant text is never treated as evidence or retrieval instructions. A
+bounded recent transcript is provided to generation as conversation data, but
+every factual claim must come from the public context or public evidence
+returned by `ProfileService`. Results remain ordered public evidence copies
+only; they do not infer dates, ownership, relevance, skills, or technologies
+that are not present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
 
 ### Conversational UX and professional representation
 
-The agent separates conversation from factual grounding. Standalone small talk,
-trusted basic identity, and data-specific unknowns are handled without sending
-them through lexical retrieval. Mixed social language does not intercept a
-professional question. Education and professional overviews use public profile
-evidence, while professional-representation questions can ask the provider to
-synthesize strengths, impact, evolution, and potential value without inventing
-facts or ownership.
+The agent separates conversation from factual grounding. Every valid textual
+request reaches the provider, including social, identity, unknown-data and
+follow-up questions. `AgentCore` still performs the current-query public-only
+retrieval, but an empty or partial retrieval package does not short-circuit
+conversation. The provider receives a detached public canonical profile
+context, specific public evidence when available, bounded transcript data and
+the current question, then handles natural-language interpretation and
+professional synthesis without inventing facts or ownership.
 
 The grounding boundary limits what may be asserted about Israel; it does not
-prevent natural explanation or favorable synthesis of supported facts. A
-request may contain up to 128 replayed transcript messages, while only the
-most recent 8 messages and 8,000 characters are passed to generation. The
-conversation remains stateless and assistant transcript text is never evidence.
+prevent natural explanation or favorable synthesis of supported facts. The
+public profile context is generated from `ProfileService.get_profile("public")`
+and measured at 36,899 characters / 37,305 UTF-8 bytes for the current
+canonical profile. A request may contain up to 128 replayed transcript
+messages, while only the most recent 8 messages and 8,000 characters are
+passed to generation. The conversation remains stateless and assistant
+transcript text is never evidence.
 The protected request body limit is 256 KiB (262,144 bytes), with the exact
 boundary accepted and the next byte rejected; individual messages remain
 limited to 12,000 characters and content parts to 32. Generic token suffix
-normalization supports ordinary colloquial variants without adding question-
-specific rules.
+normalization remains limited to deterministic lexical retrieval and does not
+attempt to understand slang, aliases, follow-up intent or conversational
+coreference.
 
 The local product runner exercises the 30-turn Parley-style conversation with
 a fake provider by default:

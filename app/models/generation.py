@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import copy
+from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
 from app.models.agent import AgentEvidence, AgentPolicy
@@ -24,6 +25,12 @@ class TextGenerationRequest:
     transcript: tuple[ConversationMessage, ...]
     evidence: tuple[AgentEvidence, ...]
     policy: AgentPolicy
+    public_profile: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Detach the trusted public context from mutable profile storage."""
+
+        object.__setattr__(self, "public_profile", copy.deepcopy(self.public_profile))
 
 
 class TextGenerator(Protocol):
