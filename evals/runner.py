@@ -13,7 +13,15 @@ from typing import Any, Iterable
 from app.agent.core import AgentCore
 from app.models.agent import PreparedAgentTurn
 from app.services.profile_service import ProfileService
-from evals.metrics import FAIL, NOT_EVALUATED, PASS, EvalOutcome, EvalReport, render_report
+from evals.metrics import (
+    FAIL,
+    NOT_APPLICABLE,
+    NOT_EVALUATED,
+    PASS,
+    EvalOutcome,
+    EvalReport,
+    render_report,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -261,7 +269,7 @@ def evaluate_case(case: EvalCase, core: AgentCore) -> EvalOutcome:
             PASS if bool(turn.evidence) is not case.should_abstain else FAIL
         ),
         "required_evidence_ids": (
-            NOT_EVALUATED
+            NOT_APPLICABLE
             if not case.required_evidence_ids
             else (
                 PASS
@@ -270,7 +278,7 @@ def evaluate_case(case: EvalCase, core: AgentCore) -> EvalOutcome:
             )
         ),
         "top_evidence_ids": (
-            NOT_EVALUATED
+            NOT_APPLICABLE
             if not case.top_evidence_ids
             else (
                 PASS
@@ -282,7 +290,7 @@ def evaluate_case(case: EvalCase, core: AgentCore) -> EvalOutcome:
             )
         ),
         "forbidden_evidence_ids_absent": (
-            NOT_EVALUATED
+            NOT_APPLICABLE
             if not case.forbidden_evidence_ids
             else (
                 PASS
@@ -303,7 +311,7 @@ def evaluate_case(case: EvalCase, core: AgentCore) -> EvalOutcome:
         # This is only a literal safety signal over retrieved evidence. It is
         # not semantic validation of a future generated answer.
         "literal_forbidden_evidence_phrases_absent": (
-            NOT_EVALUATED
+            NOT_APPLICABLE
             if not case.forbidden_claims
             else (
                 PASS
@@ -311,17 +319,17 @@ def evaluate_case(case: EvalCase, core: AgentCore) -> EvalOutcome:
                 else FAIL
             )
         ),
-        "required_facts_semantics": (
-            NOT_EVALUATED if case.required_facts else NOT_EVALUATED
-        ),
-        "forbidden_claims_semantics": (
-            NOT_EVALUATED if case.forbidden_claims else NOT_EVALUATED
-        ),
-        "generated_answer_semantics": NOT_EVALUATED,
     }
+    checks["required_facts_semantics"] = (
+        NOT_EVALUATED if case.required_facts else NOT_APPLICABLE
+    )
+    checks["forbidden_claims_semantics"] = (
+        NOT_EVALUATED if case.forbidden_claims else NOT_APPLICABLE
+    )
+    checks["generated_answer_semantics"] = NOT_EVALUATED
     failed_checks = [name for name, status in checks.items() if status == FAIL]
-    review_items = [
-        "generated_answer_semantics: LIVE_ONLY/HUMAN_REVIEW",
+    review_items: list[str] = [
+        "generated_answer: LIVE_ONLY/HUMAN_REVIEW",
     ]
     if case.required_facts:
         review_items.append("required_facts: HUMAN_REVIEW/FUTURE_SEMANTIC_JUDGE")

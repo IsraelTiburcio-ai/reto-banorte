@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterable
-
-
 PASS = "PASS"
 FAIL = "FAIL"
 NOT_EVALUATED = "NOT_EVALUATED"
-CHECK_STATUSES = frozenset({PASS, FAIL, NOT_EVALUATED})
+NOT_APPLICABLE = "N/A"
+CHECK_STATUSES = frozenset({PASS, FAIL, NOT_EVALUATED, NOT_APPLICABLE})
 
 
 @dataclass(frozen=True)
@@ -82,6 +80,14 @@ class EvalReport:
         )
 
     @property
+    def checks_applicable(self) -> int:
+        return sum(
+            status in {PASS, FAIL, NOT_EVALUATED}
+            for outcome in self.outcomes
+            for status in outcome.checks.values()
+        )
+
+    @property
     def checks_not_evaluated(self) -> int:
         return sum(
             status == NOT_EVALUATED
@@ -90,15 +96,23 @@ class EvalReport:
         )
 
     @property
+    def checks_not_applicable(self) -> int:
+        return sum(
+            status == NOT_APPLICABLE
+            for outcome in self.outcomes
+            for status in outcome.checks.values()
+        )
+
+    @property
     def check_coverage(self) -> float:
         return (
-            self.checks_executed / self.checks_declared
-            if self.checks_declared
+            self.checks_executed / self.checks_applicable
+            if self.checks_applicable
             else 0.0
         )
 
     def check_counts(self) -> dict[str, int]:
-        counts = {PASS: 0, FAIL: 0, NOT_EVALUATED: 0}
+        counts = {PASS: 0, FAIL: 0, NOT_EVALUATED: 0, NOT_APPLICABLE: 0}
         for outcome in self.outcomes:
             for status in outcome.checks.values():
                 counts[status] += 1
@@ -106,12 +120,40 @@ class EvalReport:
 
     def by_category(self) -> dict[str, dict[str, int]]:
         counts: defaultdict[str, dict[str, int]] = defaultdict(
-            lambda: {PASS: 0, FAIL: 0, NOT_EVALUATED: 0, "checks": 0, "declared": 0}
+            lambda: {
+                "case_pass": 0,
+                "case_fail": 0,
+                "case_not_evaluated": 0,
+                "check_pass": 0,
+                "check_fail": 0,
+                "check_not_evaluated": 0,
+                "check_not_applicable": 0,
+                "executed": 0,
+                "applicable": 0,
+            }
         )
         for outcome in self.outcomes:
-            counts[outcome.category][outcome.case_status] += 1
-            counts[outcome.category]["declared"] += len(outcome.checks)
-            counts[outcome.category]["checks"] += sum(
+            counts[outcome.category][
+                {
+                    PASS: "case_pass",
+                    FAIL: "case_fail",
+                    NOT_EVALUATED: "case_not_evaluated",
+                }[outcome.case_status]
+            ] += 1
+            for status in outcome.checks.values():
+                counts[outcome.category][
+                    {
+                        PASS: "check_pass",
+                        FAIL: "check_fail",
+                        NOT_EVALUATED: "check_not_evaluated",
+                        NOT_APPLICABLE: "check_not_applicable",
+                    }[status]
+                ] += 1
+            counts[outcome.category]["applicable"] += sum(
+                status in {PASS, FAIL, NOT_EVALUATED}
+                for status in outcome.checks.values()
+            )
+            counts[outcome.category]["executed"] += sum(
                 status in {PASS, FAIL} for status in outcome.checks.values()
             )
         return {category: values for category, values in sorted(counts.items())}
@@ -132,10 +174,14 @@ def render_report(report: EvalReport) -> str:
         "(This is retrieval/contract coverage, not factuality or overall quality.)",
         "",
         "CHECK COVERAGE:",
-        f"EXECUTED: {report.checks_executed}/{report.checks_declared} ({report.check_coverage:.1%})",
+        f"DECLARED/APPLICABLE CHECKS: {report.checks_applicable}",
+        f"EXECUTED CHECKS: {report.checks_executed}",
         f"PASS CHECKS: {check_counts[PASS]}",
         f"FAIL CHECKS: {check_counts[FAIL]}",
         f"NOT_EVALUATED CHECKS: {check_counts[NOT_EVALUATED]}",
+        f"N/A CHECKS: {check_counts[NOT_APPLICABLE]}",
+        f"CHECK COVERAGE: {report.check_coverage:.1%}",
+        "(N/A is excluded from the coverage denominator; coverage is not a quality score.)",
         "",
         "LIVE/MANUAL COVERAGE:",
         "NOT_EVALUATED offline: generated-answer semantics, paraphrase detection, "
@@ -145,37 +191,29 @@ def render_report(report: EvalReport) -> str:
     ]
     for category, counts in report.by_category().items():
         coverage = (
-            f"{counts['checks']}/{counts['declared']} checks"
-            if counts["declared"]
-            else "0/0 checks"
+            f"{counts['executed']}/{counts['applicable']} checks"
+            if counts["applicable"]
+            else "0/0 applicable checks"
         )
         lines.append(
-            f"{category}: PASS {counts[PASS]}, FAIL {counts[FAIL]}, "
-            f"NOT_EVALUATED {counts[NOT_EVALUATED]} ({coverage})"
+            f"{category}: CASES PASS {counts['case_pass']}, "
+            f"FAIL {counts['case_fail']}, NOT_EVALUATED {counts['case_not_evaluated']}; "
+            f"CHECKS PASS {counts['check_pass']}, FAIL {counts['check_fail']}, "
+            f"NOT_EVALUATED {counts['check_not_evaluated']}, "
+            f"N/A {counts['check_not_applicable']} ({coverage})"
         )
 
-    failures = [outcome for outcome in report.outcomes if outcome.case_status == FAIL]
-    if failures:
-        lines.extend(("", "FAILURES:"))
-        for outcome in failures:
-            lines.extend(
-                (
-                    f"- {outcome.case_id}",
-                    f"  input: {outcome.input}",
-                    f"  expected: {outcome.expected_behavior}",
-                    f"  observed_status: {outcome.observed_status}",
-                    f"  observed_evidence_ids: {list(outcome.observed_evidence_ids)}",
-                    f"  issue: {outcome.issue}",
-                )
-            )
-    not_evaluated = [
-        outcome
-        for outcome in report.outcomes
-        if outcome.case_status == NOT_EVALUATED
-    ]
-    if not_evaluated:
-        lines.extend(("", "NOT_EVALUATED CASES:"))
-        for outcome in not_evaluated:
-            items = ", ".join(outcome.review_items) or "declared semantic expectation"
-            lines.append(f"- {outcome.case_id}: {items}")
+    lines.extend(("", "CASE REPORTS:"))
+    for outcome in report.outcomes:
+        lines.extend((f"CASE: {outcome.case_id}", f"STATUS: {outcome.case_status}"))
+        for status in (PASS, FAIL, NOT_EVALUATED, NOT_APPLICABLE):
+            lines.append(f"{status}:")
+            matching_checks = [
+                name for name, check_status in outcome.checks.items()
+                if check_status == status
+            ]
+            lines.extend(f"  - {name}" for name in matching_checks)
+        if outcome.issue:
+            lines.append(f"ISSUE: {outcome.issue}")
+        lines.append("")
     return "\n".join(lines)

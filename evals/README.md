@@ -26,18 +26,24 @@ El dataset usa estas expectativas de ranking:
 El reporte separa explícitamente:
 
 - `OFFLINE CASE STATUS`: `PASS`, `FAIL` o `NOT_EVALUATED`;
-- `CHECK COVERAGE`: checks ejecutados frente a checks declarados;
+- `CHECK COVERAGE`: checks ejecutados frente a checks aplicables;
 - `LIVE/MANUAL COVERAGE`: expectativas que requieren respuesta generada.
 
 Los `required_facts` no se validan mediante substring ni matching semántico
 falso. La factualidad completa, groundedness de la prosa, paráfrasis de claims
 prohibidos, ownership, skill calibration, métricas aproximadas, relevancia
 semántica e idioma requieren revisión humana o un semantic judge futuro. Por
-eso no contribuyen a un PASS offline y se marcan como `NOT_EVALUATED`.
+eso, cuando están declarados, se marcan como `NOT_EVALUATED` offline. Cuando
+una expectativa no está declarada —por ejemplo una lista vacía de evidencia
+requerida, ranking o evidencia prohibida— el check es `N/A`.
 
 El porcentaje offline, cuando existe, es únicamente de casos completamente
-evaluados respecto de sus checks declarados; no es un porcentaje de calidad,
-factualidad ni groundedness del agente.
+evaluados respecto de sus checks aplicables. `PASS + FAIL` forman los checks
+ejecutados; `NOT_EVALUATED` permanece en el denominador aplicable y `N/A` queda
+fuera. No es un porcentaje de calidad, factualidad ni groundedness del agente.
+
+El CLI imprime para cada caso sus checks agrupados bajo `PASS`, `FAIL`,
+`NOT_EVALUATED` y `N/A`, además del status general del caso.
 
 ## Live / post-generation
 

@@ -8,7 +8,15 @@ from dataclasses import replace
 from unittest.mock import patch
 
 from app.agent.core import AgentCore
-from evals.metrics import FAIL, NOT_EVALUATED, PASS, EvalOutcome, EvalReport, render_report
+from evals.metrics import (
+    FAIL,
+    NOT_APPLICABLE,
+    NOT_EVALUATED,
+    PASS,
+    EvalOutcome,
+    EvalReport,
+    render_report,
+)
 from evals.runner import (
     VALID_CATEGORIES,
     build_parser,
@@ -70,8 +78,14 @@ class EvalInfrastructureTests(unittest.TestCase):
             if outcome.case_id == "natural-language-mcp"
         )
         self.assertEqual(natural_mcp.case_status, NOT_EVALUATED)
+        self.assertEqual(natural_mcp.checks["expected_status"], PASS)
+        self.assertEqual(natural_mcp.checks["evidence_package_non_empty"], PASS)
         self.assertEqual(natural_mcp.checks["required_evidence_ids"], PASS)
         self.assertEqual(natural_mcp.checks["top_evidence_ids"], PASS)
+        self.assertEqual(
+            natural_mcp.checks["forbidden_evidence_ids_absent"], NOT_APPLICABLE
+        )
+        self.assertEqual(natural_mcp.checks["required_facts_semantics"], NOT_EVALUATED)
 
     def test_known_followup_limitation_is_reported_not_hidden(self) -> None:
         report = run_offline(self.cases)
@@ -131,7 +145,20 @@ class EvalInfrastructureTests(unittest.TestCase):
         case = next(case for case in self.cases if case.id == "natural-language-mcp")
         outcome = evaluate_case(case, AgentCore())
         self.assertEqual(
-            outcome.checks["forbidden_evidence_ids_absent"], NOT_EVALUATED
+            outcome.checks["forbidden_evidence_ids_absent"], NOT_APPLICABLE
+        )
+
+    def test_empty_expectations_are_not_applicable(self) -> None:
+        case = next(case for case in self.cases if case.id == "conversation-followup")
+        outcome = evaluate_case(case, AgentCore())
+        self.assertEqual(outcome.checks["required_evidence_ids"], NOT_APPLICABLE)
+        self.assertEqual(outcome.checks["top_evidence_ids"], NOT_APPLICABLE)
+        self.assertEqual(outcome.checks["required_facts_semantics"], NOT_APPLICABLE)
+        self.assertEqual(
+            outcome.checks["forbidden_evidence_ids_absent"], FAIL
+        )
+        self.assertEqual(
+            outcome.checks["forbidden_claims_semantics"], NOT_EVALUATED
         )
 
     def test_live_only_and_manual_checks_are_not_offline_passes(self) -> None:
@@ -141,6 +168,26 @@ class EvalInfrastructureTests(unittest.TestCase):
         self.assertEqual(outcome.checks["forbidden_claims_semantics"], NOT_EVALUATED)
         self.assertEqual(outcome.checks["generated_answer_semantics"], NOT_EVALUATED)
         self.assertNotEqual(outcome.case_status, PASS)
+
+    def test_cli_audits_partial_case_pass_na_and_not_evaluated_checks(self) -> None:
+        case = next(case for case in self.cases if case.id == "natural-language-mcp")
+        rendered = render_report(run_offline((case,)))
+        self.assertIn("CASE: natural-language-mcp", rendered)
+        self.assertIn("STATUS: NOT_EVALUATED", rendered)
+        self.assertIn("PASS:\n  - expected_status", rendered)
+        self.assertIn("  - required_evidence_ids", rendered)
+        self.assertIn("NOT_EVALUATED:\n  - required_facts_semantics", rendered)
+        self.assertIn("N/A:\n  - forbidden_evidence_ids_absent", rendered)
+
+    def test_cli_audits_fail_checks_for_known_followup(self) -> None:
+        case = next(case for case in self.cases if case.id == "conversation-followup")
+        rendered = render_report(run_offline((case,)))
+        self.assertIn("CASE: conversation-followup", rendered)
+        self.assertIn("STATUS: FAIL", rendered)
+        self.assertIn("FAIL:\n  - expected_status", rendered)
+        self.assertIn("  - forbidden_evidence_ids_absent", rendered)
+        self.assertIn("NOT_EVALUATED:\n  - forbidden_claims_semantics", rendered)
+        self.assertIn("N/A:\n  - required_evidence_ids", rendered)
 
     def test_metrics_exclude_not_evaluated_from_pass_rate(self) -> None:
         def outcome(case_id: str, status: str, checks: dict[str, str]) -> EvalOutcome:
@@ -157,9 +204,13 @@ class EvalInfrastructureTests(unittest.TestCase):
 
         report = EvalReport(
             (
-                outcome("pass", PASS, {"retrieval": PASS, "semantic": NOT_EVALUATED}),
+                outcome("pass", PASS, {"retrieval": PASS, "optional": NOT_APPLICABLE}),
                 outcome("fail", FAIL, {"retrieval": FAIL}),
-                outcome("na", NOT_EVALUATED, {"semantic": NOT_EVALUATED}),
+                outcome(
+                    "pending",
+                    NOT_EVALUATED,
+                    {"semantic": NOT_EVALUATED, "optional": NOT_APPLICABLE},
+                ),
             )
         )
         self.assertEqual(report.passed, 1)
@@ -168,8 +219,12 @@ class EvalInfrastructureTests(unittest.TestCase):
         self.assertEqual(report.executable_cases, 2)
         self.assertEqual(report.pass_rate, 0.5)
         self.assertEqual(report.checks_executed, 2)
-        self.assertEqual(report.checks_declared, 4)
-        self.assertEqual(report.check_coverage, 0.5)
+        self.assertEqual(report.checks_declared, 5)
+        self.assertEqual(report.checks_applicable, 3)
+        self.assertEqual(report.checks_not_evaluated, 1)
+        self.assertEqual(report.checks_not_applicable, 2)
+        self.assertEqual(report.check_coverage, report.checks_executed / report.checks_applicable)
+        self.assertAlmostEqual(report.check_coverage, 2 / 3)
 
     def test_live_limit_six_is_rejected_before_provider_use(self) -> None:
         with self.assertRaisesRegex(ValueError, "between 1 and 5"):

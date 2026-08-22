@@ -55,13 +55,27 @@ El reporte separa:
 - `OFFLINE CASE STATUS`: estado del caso completo; si contiene expectativas
   semánticas no ejecutables, queda `NOT_EVALUATED`, salvo que falle un check
   determinista;
-- `CHECK COVERAGE`: checks `PASS`/`FAIL` ejecutados frente a checks declarados;
+- `CHECK COVERAGE`: checks `PASS`/`FAIL` ejecutados frente a checks aplicables;
 - `LIVE/MANUAL COVERAGE`: expectativas diferidas.
 
 El pass rate solo usa casos completamente evaluados y se etiqueta como
 `OFFLINE EXECUTABLE PASS RATE`. No se presenta como factuality, groundedness ni
 calidad general. La salida por categoría muestra también cuántos checks fueron
-ejecutados y cuántos quedaron `NOT_EVALUATED`.
+ejecutados y cuántos quedaron `NOT_EVALUATED` o `N/A`.
+
+Los estados de check tienen una semántica estricta:
+
+- `PASS`: existe una expectativa aplicable, se ejecutó y pasó;
+- `FAIL`: existe una expectativa aplicable, se ejecutó y falló;
+- `NOT_EVALUATED`: existe una expectativa, pero requiere live, revisión humana
+  o semántica no implementada;
+- `N/A`: no existe una expectativa para ese check.
+
+Coverage es `PASS + FAIL` dividido entre `PASS + FAIL + NOT_EVALUATED`.
+`N/A` queda fuera del denominador. El CLI audita cada caso mostrando sus
+checks agrupados en los cuatro estados; el status de caso sigue la regla
+`FAIL` si existe un fallo, luego `NOT_EVALUATED` si queda una expectativa
+pendiente, y `PASS` si todas las expectativas aplicables ejecutadas pasan.
 
 ## Offline, live y revisión humana
 

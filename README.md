@@ -81,7 +81,10 @@ El reporte separa `OFFLINE CASE STATUS`, `CHECK COVERAGE` y
 retrieval/contrato aplicables pasaron; `NOT_EVALUATED` cubre factualidad
 semántica, groundedness de la prosa, ownership, skill calibration y paráfrasis
 que requieren respuesta generada y revisión humana. No se presenta el pass
-rate offline como calidad general del agente.
+rate offline como calidad general del agente. `N/A` significa que el caso no
+declaró esa expectativa; `NOT_EVALUATED` significa que sí la declaró pero el
+modo actual no puede evaluarla. Coverage es checks `PASS + FAIL` sobre checks
+aplicables (`PASS + FAIL + NOT_EVALUATED`), excluyendo `N/A`.
 
 También pueden ejecutarse los tests de infraestructura con la suite normal:
 
