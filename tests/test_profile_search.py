@@ -111,6 +111,20 @@ class ProfileSearchTests(unittest.TestCase):
             ["mcp", "mcp-analytics", "mcp-order-status"],
         )
 
+    def test_legacy_israel_query_keeps_existing_results(self) -> None:
+        self.assertEqual(
+            [result.entity_id for result in self.service.search("Israel")],
+            [
+                "professional_summary",
+                "claudia",
+                "farmacia-la-paz-shopify",
+                "prixz-whatsapp-agent-challenge",
+            ],
+        )
+
+    def test_legacy_experience_query_keeps_existing_result_count(self) -> None:
+        self.assertEqual(len(self.service.search("experiencia")), 15)
+
     def test_natural_language_mcp_query_finds_public_mcp_evidence(self) -> None:
         result_ids = self.ids_for("¿Qué experiencia tiene Israel con MCP?")
         self.assertIn("mcp", result_ids)
@@ -126,9 +140,45 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertIn("python", result_ids)
 
     def test_natural_language_python_and_fastapi_query_is_relevant(self) -> None:
-        result_ids = self.ids_for("¿Qué experiencia tiene con Python y FastAPI?")
+        results = self.service.search("¿Qué experiencia tiene con Python y FastAPI?")
+        result_ids = {result.entity_id for result in results}
         self.assertIn("python", result_ids)
         self.assertIn("backend", result_ids)
+
+    def test_multiple_significant_terms_rank_above_single_term(self) -> None:
+        profile = minimal_profile()
+        profile["projects"] = [
+            {
+                "id": "one-term",
+                "visibility": "public",
+                "name": "Python",
+            },
+            {
+                "id": "two-terms",
+                "visibility": "public",
+                "name": "Python FastAPI",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            profile_path = Path(directory) / "profile.json"
+            profile_path.write_text(json.dumps(profile), encoding="utf-8")
+            service = ProfileService(profile_path)
+
+            results = service.search(
+                "¿Qué experiencia tiene con Python y FastAPI?"
+            )
+
+        self.assertEqual(
+            [result.entity_id for result in results],
+            ["two-terms", "one-term"],
+        )
+
+    def test_noise_tokens_do_not_create_arbitrary_results(self) -> None:
+        self.assertEqual(self.service.search("¿qué x?"), [])
+        result_ids = self.ids_for("python x q 1")
+        self.assertIn("python", result_ids)
+        self.assertNotIn("mcp", result_ids)
+        self.assertLessEqual(len(result_ids), 5)
 
     def test_stopword_only_query_returns_no_results(self) -> None:
         self.assertEqual(
