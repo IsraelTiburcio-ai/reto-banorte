@@ -29,5 +29,11 @@ class TextGenerationRequest:
 class TextGenerator(Protocol):
     """Small provider-neutral interface for one grounded text generation."""
 
+    @property
+    def provider_request_attempted(self) -> bool:
+        """Whether the most recent call attempted an outbound provider request."""
+
+        ...
+
     def generate(self, request: TextGenerationRequest) -> str:
         """Generate text from an already prepared, public-only request."""

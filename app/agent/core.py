@@ -38,6 +38,37 @@ class AgentCore:
 
         return self._policy
 
+    @property
+    def is_ready(self) -> bool:
+        """Report whether the initialized local retrieval boundary is usable."""
+
+        return (
+            isinstance(self._profile_service, ProfileService)
+            and self._is_valid_policy(self._policy)
+        )
+
+    def check_readiness(self) -> None:
+        """Probe local retrieval without invoking generation or external services."""
+
+        if not self.is_ready:
+            raise RuntimeError("agent core is not ready")
+        # This neutral query intentionally exercises the normal preparation and
+        # ProfileService.search path without depending on a profile fact.
+        self.prepare("readiness")
+
+    @staticmethod
+    def _is_valid_policy(policy: object) -> bool:
+        return (
+            isinstance(policy, AgentPolicy)
+            and isinstance(policy.name, str)
+            and bool(policy.name.strip())
+            and isinstance(policy.objective, str)
+            and bool(policy.objective.strip())
+            and isinstance(policy.rules, tuple)
+            and bool(policy.rules)
+            and all(isinstance(rule, str) and bool(rule.strip()) for rule in policy.rules)
+        )
+
     def prepare(
         self,
         query: str,
