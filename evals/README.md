@@ -1,37 +1,67 @@
 # Phase 7 — Evals
 
-Esta suite mide la calidad observable del CV Agent sin alterar su arquitectura
-ni consumir la API real durante la ejecución normal.
+Esta suite mide contratos observables del CV Agent sin alterar su arquitectura
+ni consumir la API real durante la ejecución normal. Una eval de retrieval no
+es una eval de respuesta generada: recuperar evidencia pública no demuestra
+que una respuesta posterior sea factual, relevante o esté bien redactada.
 
-## Offline
+## Offline / pre-generation
 
 ```bash
 python3 -m evals.runner
 ```
 
-El modo offline usa `AgentCore` y `ProfileService` locales. Comprueba estado de
-evidencia, IDs esperados, visibilidad pública, ausencia de marcadores
-restringidos y claims prohibidos en la evidencia serializada. No genera una
-respuesta LLM y no puede medir completamente la calidad de la prosa,
-ownership o skill calibration de una respuesta generada.
+El modo offline usa `AgentCore` y `ProfileService` locales. Ejecuta checks
+deterministas de status, paquete de evidencia, IDs requeridos, ranking dentro
+de `top_k`, abstention, visibilidad pública, marcadores restringidos y
+ausencia literal de claims prohibidos dentro de la evidencia serializada.
 
-## Live
+El dataset usa estas expectativas de ranking:
 
-El modo live nunca se activa por defecto. Requiere confirmación explícita,
-limita la muestra a cinco casos y no imprime respuestas:
+- `required_evidence_ids`: deben aparecer en cualquier posición;
+- `top_evidence_ids` + `top_k`: deben aparecer dentro del prefijo rankeado;
+- `forbidden_evidence_ids`: solo se comprueban cuando la lista no está vacía;
+  una lista vacía se reporta como `NOT_EVALUATED`, no como PASS.
+
+El reporte separa explícitamente:
+
+- `OFFLINE CASE STATUS`: `PASS`, `FAIL` o `NOT_EVALUATED`;
+- `CHECK COVERAGE`: checks ejecutados frente a checks declarados;
+- `LIVE/MANUAL COVERAGE`: expectativas que requieren respuesta generada.
+
+Los `required_facts` no se validan mediante substring ni matching semántico
+falso. La factualidad completa, groundedness de la prosa, paráfrasis de claims
+prohibidos, ownership, skill calibration, métricas aproximadas, relevancia
+semántica e idioma requieren revisión humana o un semantic judge futuro. Por
+eso no contribuyen a un PASS offline y se marcan como `NOT_EVALUATED`.
+
+El porcentaje offline, cuando existe, es únicamente de casos completamente
+evaluados respecto de sus checks declarados; no es un porcentaje de calidad,
+factualidad ni groundedness del agente.
+
+## Live / post-generation
+
+El modo live nunca se activa por defecto. Requiere confirmación explícita y
+limita la muestra a cinco casos:
 
 ```bash
 python3 -m evals.runner --live --confirm-live --limit 1
 ```
 
+El runner live puede comprobar HTTP, schema de respuesta, forma de
+`assistant/output_text` y marcadores restringidos. Devuelve además campos
+`NOT_EVALUATED` y `manual_review` para factualidad, groundedness, ownership,
+skills y métricas; no autoaprueba la calidad semántica de una respuesta.
 Antes de ejecutar un batch live se debe reportar el número de casos, el modelo
 configurado y la estimación de llamadas/costo. Esta implementación no ejecuta
 ningún batch live automáticamente.
 
-## Dataset
+## Dataset y límites
 
-Los casos auditables están en `evals/cases.json`. Sus expectativas son
-contratos de evidencia y seguridad, no respuestas generadas guardadas como
-verdad absoluta. Las limitaciones de follow-ups y de evaluación lingüística
-requieren revisión manual o una futura estrategia separada; no se usa
-LLM-as-a-judge en Phase 7.
+Los casos auditables están en `evals/cases.json`. Cada expectativa queda
+clasificada por su check offline, por revisión live/manual o por una futura
+evaluación semántica. No se almacenan respuestas LLM como ground truth.
+
+La limitación de follow-up `¿Y cuál usabas más?` permanece visible como fallo
+conocido de retrieval sin coreferencia; no se modifica el agente para mejorar
+el score. No se usa LLM-as-a-judge en Phase 7.

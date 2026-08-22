@@ -76,6 +76,13 @@ Las evals offline son deterministas, usan `AgentCore` y no consumen la API real:
 python3 -m evals.runner
 ```
 
+El reporte separa `OFFLINE CASE STATUS`, `CHECK COVERAGE` y
+`LIVE/MANUAL COVERAGE`. `PASS` offline significa únicamente que los checks de
+retrieval/contrato aplicables pasaron; `NOT_EVALUATED` cubre factualidad
+semántica, groundedness de la prosa, ownership, skill calibration y paráfrasis
+que requieren respuesta generada y revisión humana. No se presenta el pass
+rate offline como calidad general del agente.
+
 También pueden ejecutarse los tests de infraestructura con la suite normal:
 
 ```bash
@@ -90,7 +97,9 @@ python3 -m evals.runner --live --confirm-live --limit 1
 ```
 
 No se usa LLM-as-a-judge en esta fase. El modo offline no guarda respuestas
-generadas como verdad absoluta y no imprime secretos.
+generadas como verdad absoluta y no imprime secretos. El follow-up
+`¿Y cuál usabas más?` permanece como limitación conocida y puede fallar por
+coreferencia.
 
 ## Ejecución local
 
