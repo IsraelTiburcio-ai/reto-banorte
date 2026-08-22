@@ -287,6 +287,16 @@ class OpenResponsesAdapter:
         contextual_turn = self._agent_core.prepare(contextual_query)
         if contextual_turn.status != "ready":
             return turn
+        # A self-contained professional overview can already be stronger than
+        # a contextual replay polluted by an older topic. Prefer the current
+        # turn when the enriched retrieval would discard public evidence, but
+        # keep restrictive referential questions on the contextual path.
+        if (
+            turn.status == "ready"
+            and len(contextual_turn.evidence) < len(turn.evidence)
+            and self._is_professional_overview_question(current_user_query)
+        ):
+            return turn
         # Keep the user-facing question current while using only prior user
         # text to recover public evidence for a stateless follow-up.
         return replace(contextual_turn, query=current_user_query)
@@ -317,6 +327,37 @@ class OpenResponsesAdapter:
                 and has_anaphoric_verb
             )
             or (has_anaphoric_verb and has_reference_marker)
+        )
+
+    @staticmethod
+    def _is_professional_overview_question(query: str) -> bool:
+        """Recognize broad representation intent without matching full phrases."""
+
+        decomposed = unicodedata.normalize("NFKD", query)
+        normalized = "".join(
+            character
+            for character in decomposed
+            if not unicodedata.combining(character)
+        )
+        tokens = set(re.sub(r"[^\w]+", " ", normalized.casefold()).split())
+        return bool(
+            tokens.intersection(
+                {
+                    "fortaleza",
+                    "fortalezas",
+                    "contratar",
+                    "contratarias",
+                    "diferencia",
+                    "diferente",
+                    "reclutador",
+                    "recruiter",
+                    "rol",
+                    "valor",
+                    "vendelo",
+                    "vendemelo",
+                    "vender",
+                }
+            )
         )
 
     @staticmethod

@@ -10,7 +10,7 @@ history than the previous request. The Phase 10 adapter validated each message
 correctly but also summed every transcript character and rejected the request
 when that aggregate exceeded `MAX_INPUT_TEXT_CHARS` (12,000). This made a
 valid request fail before current-user extraction, retrieval, or generation,
-even when the complete HTTP body was within the 64 KiB security limit.
+even when the complete HTTP body was within the 256 KiB security limit.
 
 The same integration exposed natural, public-profile questions about the
 agent's capabilities, education, and cloud skills that should not depend on
@@ -21,7 +21,7 @@ provider generation when deterministic public retrieval is sufficient.
 Keep the HTTP security boundary unchanged:
 
 ```text
-HTTP body <= 64 KiB
+HTTP body <= 256 KiB
   -> strict message/content validation
   -> bounded request-scoped history
   -> current user query

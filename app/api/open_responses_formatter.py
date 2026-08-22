@@ -223,7 +223,16 @@ def _is_person_identity_question(normalized: str) -> bool:
     tokens = set(normalized.split())
     if "nombre" in tokens and ("completo" in tokens or "full" in tokens):
         return True
-    return "llama" in tokens and ("israel" in tokens or "nombre" in tokens)
+    return "llama" in tokens and (
+        "israel" in tokens or "nombre" in tokens or "completo" in tokens
+    )
+
+
+def _is_agent_identity_question(normalized: str) -> bool:
+    tokens = set(normalized.split())
+    return "agente" in tokens and bool(
+        tokens.intersection({"israel", "isra", "tiburcio"})
+    )
 
 
 def _is_unknown_personal_question(normalized: str) -> bool:
@@ -303,6 +312,8 @@ def deterministic_response_for(
         return GOODBYE_RESPONSE_TEXT, "ready"
     if _is_person_identity_question(normalized):
         return _person_identity_response(identity_name), "ready"
+    if _is_agent_identity_question(normalized):
+        return AGENT_IDENTITY_RESPONSE_TEXT, "ready"
     if normalized == "de quien es este agente":
         subject = identity_name or "Israel"
         return f"Este es el agente de CV de {subject}.", "ready"

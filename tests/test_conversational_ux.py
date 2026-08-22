@@ -92,7 +92,9 @@ class ConversationalUXTests(unittest.TestCase):
         for question in (
             "¿Cómo se llama Israel?",
             "¿Cuál es su nombre completo?",
+            "¿Cómo se llama completo?",
             "¿De quién es este agente?",
+            "¿Tú eres el agente de Isra o qué?",
         ):
             with self.subTest(question=question):
                 self.profile_service.calls.clear()
@@ -101,7 +103,10 @@ class ConversationalUXTests(unittest.TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 text = self.response_text(response)
-                self.assertIn("Israel Tiburcio Suchil", text)
+                if "agente" in question.casefold():
+                    self.assertIn("agente de CV de Israel", text)
+                else:
+                    self.assertIn("Israel Tiburcio Suchil", text)
                 self.assertEqual(self.profile_service.calls, [])
                 self.assertEqual(self.generator.requests, [])
 
@@ -181,6 +186,27 @@ class ConversationalUXTests(unittest.TestCase):
                 self.assertIn(marker, self.profile_service.calls[-1][0].casefold())
                 self.assertTrue(self.generator.requests)
 
+    def test_colloquial_professional_questions_retrieve_public_evidence(self) -> None:
+        cases = (
+            ("y que estudia este wey?", {"unam-fes-acatlan-mac"}),
+            ("por que lo contratarias?", {"professional_summary"}),
+            ("cambiando de tema sabe scrapear o no?", {"web-scraping"}),
+            ("y de nube q sabe?", {"aws", "gcp", "oracle-cloud"}),
+            ("cual dirias que es su mayor fortaleza?", {"professional_summary"}),
+            ("vendemelo en corto como si yo fuera el reclutador", {"career_story"}),
+        )
+        for question, expected_ids in cases:
+            with self.subTest(question=question):
+                self.generator.requests.clear()
+                response = self.post(question)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(self.generator.requests)
+                evidence_ids = {
+                    item.entity_id for item in self.generator.requests[-1].evidence
+                }
+                self.assertTrue(expected_ids <= evidence_ids)
+
     def test_followup_uses_user_context_but_not_assistant_as_evidence(self) -> None:
         response = self.client.post(
             "/v1/responses",
@@ -208,6 +234,33 @@ class ConversationalUXTests(unittest.TestCase):
             "Invented restricted claim",
             {item.entity_id for item in self.generator.requests[-1].evidence},
         )
+
+    def test_self_contained_overview_is_not_polluted_by_old_topic(self) -> None:
+        response = self.client.post(
+            "/v1/responses",
+            json={
+                "input": [
+                    {"role": "user", "type": "message", "content": "Oracle"},
+                    {
+                        "role": "assistant",
+                        "type": "message",
+                        "content": "Respuesta previa sobre nube.",
+                    },
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "¿Cuál dirías que es su mayor fortaleza?",
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        evidence_ids = {
+            item.entity_id for item in self.generator.requests[-1].evidence
+        }
+        self.assertIn("professional_summary", evidence_ids)
+        self.assertNotEqual(evidence_ids, {"oracle-cloud"})
 
     def test_generation_history_remains_bounded(self) -> None:
         messages = [

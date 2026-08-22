@@ -67,11 +67,28 @@ use only the current query. No persistent memory, session, cache, or
 ## Transcript limits
 
 The received transcript limit is increased to 128 messages to support Parley’s
-stateless replay. The existing body-size and per-message/content-part
+stateless replay. The body-size limit is 256 KiB, while per-message/content-part
 protections remain active. After validation, generation still receives at most
 8 recent messages and 8,000 characters; the current user question remains
 separate and complete. Tests cover 33-message and 40–60-message acceptance,
-the exact 128/129 boundary, body overflow, and one sequential 30-turn replay.
+the exact 128/129 boundary, exact 256 KiB/256 KiB+1 byte body boundaries,
+valid bodies above 64 KiB, per-message and content-part boundaries, and one
+sequential 30-turn replay. A separate regression replays 50 realistic turns
+and verifies that the received transcript can exceed 32 messages while the
+provider-facing history remains bounded.
+
+Natural-language retrieval uses generic question noise removal and a small
+suffix normalization only during deterministic token fallback. This lets
+ordinary variants such as a Spanish infinitive and an English gerund reach the
+same documented public skill without adding phrase-specific production rules.
+Colloquial fillers do not alter visibility, policy, or evidence selection.
+
+The repository includes `scripts/conversational_ux_product.py`. Its default
+mode uses a realistic fake provider and reports each of the 30 product turns
+with transport and retrieval observations; generated prose is marked
+`REVIEW` for human assessment, never judged by another LLM. The optional
+`--live` mode requires a preloaded local `OPENAI_API_KEY`, sends one sequential
+session of at most 30 requests, and never logs the credential.
 
 ## Consequences and limitations
 

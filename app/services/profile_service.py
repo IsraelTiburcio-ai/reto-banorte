@@ -97,6 +97,8 @@ class ProfileService:
         "demuestra",
         "capacidad",
         "mejor",
+        "nivel",
+        "tecnico",
     }
     _CAREER_OVERVIEW_TERMS = {
         "story",
@@ -130,6 +132,8 @@ class ProfileService:
         "capacidad",
         "carrera",
         "contratar",
+        "contrataria",
+        "contratarias",
         "dedica",
         "dedicarse",
         "diferencia",
@@ -162,6 +166,14 @@ class ProfileService:
         "destacarias",
         "valor",
         "ves",
+        "vendelo",
+        "vendemelo",
+        "vender",
+        "reclutador",
+        "recruiter",
+        "mayor",
+        "nivel",
+        "tecnico",
     }
     _REPRESENTATION_OVERVIEW_TERMS = {
         "aporta",
@@ -173,11 +185,21 @@ class ProfileService:
         "fuerte",
         "fortaleza",
         "fortalezas",
+        "contrataria",
+        "contratarias",
         "junior",
         "relevante",
         "rol",
         "roles",
         "valor",
+        "vendelo",
+        "vendemelo",
+        "vender",
+        "reclutador",
+        "recruiter",
+        "mayor",
+        "nivel",
+        "tecnico",
     }
     _IDENTITY_OVERVIEW_TERMS = {
         "about",
@@ -204,6 +226,8 @@ class ProfileService:
         "escolar",
         "estudio",
         "estudios",
+        "estudia",
+        "estudiar",
         "formacion",
         "institucion",
         "licenciatura",
@@ -319,9 +343,11 @@ class ProfileService:
         "have",
         "hacia",
         "hace",
+        "bueno",
         "hecho",
         "how",
         "israel",
+        "q",
         "la",
         "las",
         "lo",
@@ -345,6 +371,7 @@ class ProfileService:
         "which",
         "who",
         "sido",
+        "si",
         "son",
         "sobre",
         "sugiere",
@@ -360,6 +387,19 @@ class ProfileService:
         "preguntas",
         "preguntarte",
         "the",
+        "yo",
+        "wey",
+        "este",
+        "osea",
+        "cabron",
+        "aprendiendo",
+        "fuera",
+        "todo",
+        "dirias",
+        "va",
+        "cawn",
+        "gracias",
+        "corto",
         "this",
         "un",
         "una",
@@ -689,6 +729,8 @@ class ProfileService:
                     "formacion",
                     "estudio",
                     "estudios",
+                    "estudia",
+                    "estudiar",
                     "educacion",
                     "universidad",
                     "escuela",
@@ -1244,7 +1286,11 @@ class ProfileService:
             normalized_value = cls._normalize(value)
             if not normalized_value:
                 continue
-            if token not in cls._tokenize(normalized_value):
+            value_tokens = cls._tokenize(normalized_value)
+            if token not in value_tokens and not any(
+                cls._token_stem(value_token) == cls._token_stem(token)
+                for value_token in value_tokens
+            ):
                 continue
             value_score = (
                 exact_score if normalized_value == token else contains_score
@@ -1269,6 +1315,17 @@ class ProfileService:
         normalized = cls._normalize(value)
         tokenized = re.sub(r"[^\w]+", " ", normalized, flags=re.UNICODE)
         return [token for token in tokenized.split() if token]
+
+    @staticmethod
+    def _token_stem(token: str) -> str:
+        """Apply a small suffix normalization for natural-language fallback."""
+
+        normalized = token.casefold()
+        suffixes = ("iendo", "ando", "ing", "ear", "ar", "er", "ir", "es", "s")
+        for suffix in suffixes:
+            if normalized.endswith(suffix) and len(normalized) - len(suffix) >= 4:
+                return normalized[: -len(suffix)]
+        return normalized
 
     @staticmethod
     def _normalize(value: str) -> str:
