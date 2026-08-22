@@ -331,6 +331,21 @@ class LLMGenerationTests(unittest.TestCase):
         self.assertEqual(response.json()["error"]["code"], "provider_timeout")
         self.assertNotIn("unit-test-placeholder", response.text)
 
+    def test_stream_provider_failure_is_json_and_safe(self) -> None:
+        http_request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+        responses = FakeResponses(error=APITimeoutError(request=http_request))
+        generator = self.make_openai_generator(responses)
+        client = TestClient(create_app(text_generator=generator))
+
+        response = client.post(
+            "/v1/responses", json={"input": "MCP", "stream": True}
+        )
+
+        self.assertEqual(response.status_code, 504)
+        self.assertTrue(response.headers["content-type"].startswith("application/json"))
+        self.assertEqual(response.json()["error"]["code"], "provider_timeout")
+        self.assertNotIn("unit-test-placeholder", response.text)
+
     def test_health_and_agent_prepare_remain_available_with_provider_configured(self) -> None:
         generator = RecordingGenerator()
         client = TestClient(create_app(text_generator=generator))

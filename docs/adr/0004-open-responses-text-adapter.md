@@ -9,7 +9,7 @@ without moving retrieval, visibility, grounding, or generation into HTTP.
 Open Responses is a changing standard. The official specification describes
 JSON HTTP requests, string or item-array input, response objects, item-based
 output, and streaming events. This project intentionally implements only a
-strict synchronous textual subset.
+strict textual subset with synchronous JSON and a bounded SSE transport.
 
 ## Sources consulted
 
@@ -20,6 +20,12 @@ strict synchronous textual subset.
 
 The official OpenAPI document reported version `2026-04-24` at consultation
 time. Sources were consulted on 2026-08-21.
+
+For the streaming compatibility update, the official specification and
+reference pages were reconsulted on 2026-08-22. A direct compatibility capture
+against the challenge reference endpoint was also used:
+https://reto-ia-agent.calmrock-f65cc26b.eastus.azurecontainerapps.io/v1/responses
+The capture contained no private Parley data and is not used at runtime.
 
 ## Decision
 
@@ -51,6 +57,13 @@ bounded string map and is echoed as transport data; it is never passed to
 - response fields `id`, `object`, timestamps, `status`, `model`, `output`,
   `error`, and `usage`;
 - deterministic `message` / `output_text` response serialization;
+- synchronous JSON when `stream` is absent, `null`, or `false`;
+- SSE when `stream=true`, using one complete textual delta and the lifecycle
+  sequence `response.created`, `response.in_progress`,
+  `response.output_item.added`, `response.content_part.added`,
+  `response.output_text.delta`, `response.output_text.done`,
+  `response.content_part.done`, `response.output_item.done`,
+  `response.completed`, followed by `data: [DONE]`;
 - stable local error envelope.
 
 Assistant transcript content is data, not instructions. Only the last user
@@ -68,7 +81,9 @@ stateful continuation, and streaming semantic events. This subset intentionally:
   default for Parley compatibility;
 - accepts JSON only;
 - does not implement authorization;
-- rejects `stream=true` rather than emitting SSE;
+- accepts `stream=true` only as SSE transport; the response is generated fully
+  before the stream is emitted and provider token streaming is not enabled;
+- treats `stream=null` like the synchronous `false` form;
 - rejects images, files, audio, video, function/tool items and tool options;
 - rejects `system` and `developer` roles;
 - rejects `previous_response_id`, `store=true`, background execution,
@@ -108,7 +123,7 @@ transcript-aware generation and coreference are deferred to Phase 6.
 ## Deferred
 
 - LLM generation and provider selection;
-- streaming and SSE;
+- provider token streaming and incremental generation;
 - tools and function calls;
 - multimodal input;
 - system/developer instructions;
