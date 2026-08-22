@@ -6,7 +6,7 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 6 — LLM integration
+Phase 7 — Evals
 
 La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
 
@@ -61,6 +61,48 @@ export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
 `model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
 
 El generador usa la Responses API oficial con `store=false`, sin tools, streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
+
+## Phase 7 — Evals
+
+La suite reproducible de evaluación mide factuality, groundedness, relevance,
+abstention, ownership y skill calibration, métricas aproximadas, distinción
+profesional/académica/conceptual, preguntas fuera de alcance, prompt injection,
+información restringida, follow-ups, natural-language retrieval y entradas en
+español e inglés.
+
+Las evals offline son deterministas, usan `AgentCore` y no consumen la API real:
+
+```bash
+python3 -m evals.runner
+```
+
+El reporte separa `OFFLINE CASE STATUS`, `CHECK COVERAGE` y
+`LIVE/MANUAL COVERAGE`. `PASS` offline significa únicamente que los checks de
+retrieval/contrato aplicables pasaron; `NOT_EVALUATED` cubre factualidad
+semántica, groundedness de la prosa, ownership, skill calibration y paráfrasis
+que requieren respuesta generada y revisión humana. No se presenta el pass
+rate offline como calidad general del agente. `N/A` significa que el caso no
+declaró esa expectativa; `NOT_EVALUATED` significa que sí la declaró pero el
+modo actual no puede evaluarla. Coverage es checks `PASS + FAIL` sobre checks
+aplicables (`PASS + FAIL + NOT_EVALUATED`), excluyendo `N/A`.
+
+También pueden ejecutarse los tests de infraestructura con la suite normal:
+
+```bash
+python3 -m unittest discover -v tests
+```
+
+Las evals live están separadas y requieren confirmación explícita y un límite
+pequeño de casos:
+
+```bash
+python3 -m evals.runner --live --confirm-live --limit 1
+```
+
+No se usa LLM-as-a-judge en esta fase. El modo offline no guarda respuestas
+generadas como verdad absoluta y no imprime secretos. El follow-up
+`¿Y cuál usabas más?` permanece como limitación conocida y puede fallar por
+coreferencia.
 
 ## Ejecución local
 
