@@ -14,6 +14,7 @@ from app.api.open_responses_formatter import (
     ENGLISH_GREETING_RESPONSE_TEXT,
     GREETING_RESPONSE_TEXT,
     INSUFFICIENT_EVIDENCE_TEXT,
+    UNKNOWN_TECHNOLOGY_RESPONSE_TEXT,
 )
 from app.api.open_responses_schemas import (
     OpenResponsesErrorEnvelope,
@@ -1302,7 +1303,7 @@ class RealProfileFollowupTests(unittest.TestCase):
                 if expects_insufficient:
                     self.assertEqual(
                         response.json()["output"][0]["content"][0]["text"],
-                        INSUFFICIENT_EVIDENCE_TEXT,
+                        UNKNOWN_TECHNOLOGY_RESPONSE_TEXT,
                     )
                     self.assertEqual(self.text_generator.requests, [])
 

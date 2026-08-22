@@ -13,8 +13,8 @@ from pydantic import ValidationError
 
 from app.agent.core import AgentCore, AgentInputError
 from app.api.open_responses_formatter import (
-    INSUFFICIENT_EVIDENCE_TEXT,
     deterministic_response_for,
+    insufficient_response_for,
 )
 from app.api.open_responses_schemas import (
     OpenResponsesError,
@@ -106,6 +106,8 @@ _FOLLOWUP_DEMONSTRATIVES = frozenset(
 _FOLLOWUP_WHICH_TERMS = frozenset({"cual", "cuales"})
 _FOLLOWUP_ANAPHORIC_VERBS = frozenset(
     {
+        "hizo",
+        "hacia",
         "usaba",
         "usabas",
         "utilizaba",
@@ -118,6 +120,7 @@ _FOLLOWUP_ANAPHORIC_VERBS = frozenset(
         "fueron",
     }
 )
+_FOLLOWUP_REFERENCE_MARKERS = frozenset({"ahi", "alli", "el", "ella", "lo", "la"})
 
 
 class OpenResponsesRequestError(ValueError):
@@ -184,7 +187,11 @@ class OpenResponsesAdapter:
             current_user_query, transcript, input_chars = self._extract_generation_context(
                 request.input
             )
-            deterministic_response = deterministic_response_for(current_user_query)
+            identity_name = self._trusted_identity_name()
+            deterministic_response = deterministic_response_for(
+                current_user_query,
+                identity_name=identity_name,
+            )
             if deterministic_response is not None:
                 response_text, agent_status = deterministic_response
                 set_request_fields(
@@ -250,6 +257,13 @@ class OpenResponsesAdapter:
         serialized["usage"] = None
         return serialized, 200
 
+    def _trusted_identity_name(self) -> str | None:
+        getter = getattr(self._agent_core, "public_identity_name", None)
+        if not callable(getter):
+            return None
+        value = getter()
+        return value if isinstance(value, str) and value.strip() else None
+
     def _prepare_turn(
         self,
         current_user_query: str,
@@ -290,6 +304,7 @@ class OpenResponsesAdapter:
         which_terms = tokens & _FOLLOWUP_WHICH_TERMS
         has_demonstrative = bool(tokens & _FOLLOWUP_DEMONSTRATIVES)
         has_anaphoric_verb = bool(tokens & _FOLLOWUP_ANAPHORIC_VERBS)
+        has_reference_marker = bool(tokens & _FOLLOWUP_REFERENCE_MARKERS)
         has_explicit_topic = OpenResponsesAdapter._has_explicit_topic(query)
         if which_terms and has_explicit_topic:
             return False
@@ -301,6 +316,7 @@ class OpenResponsesAdapter:
                 and bool(tokens & {"lo", "la", "los", "las"})
                 and has_anaphoric_verb
             )
+            or (has_anaphoric_verb and has_reference_marker)
         )
 
     @staticmethod
@@ -472,7 +488,7 @@ class OpenResponsesAdapter:
             generation_fields["provider_invoked"] = False
         log_event("generation_started", **generation_fields)
         if turn.status == "insufficient_evidence":
-            text = INSUFFICIENT_EVIDENCE_TEXT
+            text = insufficient_response_for(turn.query)
         else:
             try:
                 text = self._text_generator.generate(

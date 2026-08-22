@@ -127,7 +127,7 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
 - El límite real del body es 64 KiB (65,536 bytes) en los dos POST protegidos,
   incluso sin `Content-Length` o cuando llegan varios chunks. Además se
   rechaza texto simple, mensaje o parte de contenido mayor a 12,000 caracteres,
-  transcripts de más de 32 mensajes y mensajes de más de 32 partes. Un transcript histórico
+  transcripts de más de 128 mensajes y mensajes de más de 32 partes. Un transcript histórico
   válido puede superar el antiguo total agregado mientras el body permanezca
   dentro de 64 KiB; antes de retrieval/generación se conserva solo una ventana
   reciente de hasta 8 mensajes y 8,000 caracteres de historial. La pregunta
@@ -254,6 +254,22 @@ from public evidence. Results remain ordered public evidence copies only; they
 do not infer dates, ownership, relevance, skills, or technologies that are not
 present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
+
+### Conversational UX and professional representation
+
+The agent separates conversation from factual grounding. Standalone small talk,
+trusted basic identity, and data-specific unknowns are handled without sending
+them through lexical retrieval. Mixed social language does not intercept a
+professional question. Education and professional overviews use public profile
+evidence, while professional-representation questions can ask the provider to
+synthesize strengths, impact, evolution, and potential value without inventing
+facts or ownership.
+
+The grounding boundary limits what may be asserted about Israel; it does not
+prevent natural explanation or favorable synthesis of supported facts. A
+request may contain up to 128 replayed transcript messages, while only the
+most recent 8 messages and 8,000 characters are passed to generation. The
+conversation remains stateless and assistant transcript text is never evidence.
 
 Phase 10 does not add conversation memory, provider streaming, new
 dependencies, or private Parley data. The SSE transport remains the existing

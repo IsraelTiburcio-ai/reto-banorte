@@ -94,6 +94,9 @@ class ProfileService:
         "destacas",
         "destacado",
         "destacados",
+        "demuestra",
+        "capacidad",
+        "mejor",
     }
     _CAREER_OVERVIEW_TERMS = {
         "story",
@@ -121,6 +124,60 @@ class ProfileService:
         "profesionalmente",
         "profesional",
         "sido",
+    }
+    _PROFESSIONAL_OVERVIEW_TERMS = {
+        "aporta",
+        "capacidad",
+        "carrera",
+        "contratar",
+        "dedica",
+        "dedicarse",
+        "diferencia",
+        "diferente",
+        "entrevista",
+        "experiencia",
+        "fuerte",
+        "fortaleza",
+        "fortalezas",
+        "hecho",
+        "ia",
+        "junior",
+        "laboral",
+        "mejor",
+        "perfil",
+        "profesional",
+        "profesionalmente",
+        "proyecto",
+        "proyectos",
+        "relevante",
+        "relevantes",
+        "rol",
+        "roles",
+        "trabaja",
+        "trabajado",
+        "trabajar",
+        "trabajo",
+        "tipo",
+        "equipo",
+        "destacarias",
+        "valor",
+        "ves",
+    }
+    _REPRESENTATION_OVERVIEW_TERMS = {
+        "aporta",
+        "capacidad",
+        "contratar",
+        "diferencia",
+        "diferente",
+        "entrevista",
+        "fuerte",
+        "fortaleza",
+        "fortalezas",
+        "junior",
+        "relevante",
+        "rol",
+        "roles",
+        "valor",
     }
     _IDENTITY_OVERVIEW_TERMS = {
         "about",
@@ -217,6 +274,7 @@ class ProfileService:
         "and",
         "area",
         "are",
+        "ahora",
         "as",
         "can",
         "con",
@@ -260,6 +318,8 @@ class ProfileService:
         "has",
         "have",
         "hacia",
+        "hace",
+        "hecho",
         "how",
         "israel",
         "la",
@@ -278,6 +338,7 @@ class ProfileService:
         "qué",
         "que",
         "s",
+        "se",
         "his",
         "her",
         "their",
@@ -300,6 +361,8 @@ class ProfileService:
         "preguntarte",
         "the",
         "this",
+        "un",
+        "una",
         "cuando",
         "tomar",
         "tomo",
@@ -317,6 +380,23 @@ class ProfileService:
         self._profile = self._load_profile()
         self._validate_profile(self._profile)
         self._indexes = self._build_indexes(self._profile)
+
+    def public_identity_name(self) -> str | None:
+        """Return only the trusted public full name for local identity replies."""
+
+        profile = getattr(self, "_profile", None)
+        if not isinstance(profile, dict):
+            return None
+        identity = profile.get("identity")
+        if not isinstance(identity, dict):
+            return None
+        visible_identity = self._visible_entity(cast(ProfileMapping, identity), "public")
+        if visible_identity is None:
+            return None
+        full_name = visible_identity.get("full_name")
+        if not isinstance(full_name, str) or not full_name.strip():
+            return None
+        return full_name.strip()
 
     def get_profile(
         self, visibility: VisibilityPolicy = "public"
@@ -549,6 +629,28 @@ class ProfileService:
             return "project_overview"
 
         if (
+            terms
+            and raw_terms.intersection(cls._REPRESENTATION_OVERVIEW_TERMS)
+            and raw_terms
+            <= cls._PROFESSIONAL_OVERVIEW_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"what", "which", "why", "how", "would", "should", "the"}
+        ):
+            return "professional_representation_overview"
+
+        if (
+            terms
+            and raw_terms.intersection(cls._PROFESSIONAL_OVERVIEW_TERMS)
+            and raw_terms
+            <= cls._PROFESSIONAL_OVERVIEW_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"what", "which", "why", "how", "would", "should", "the"}
+        ):
+            return "professional_overview"
+
+        if (
             raw_terms.intersection(
                 {"proyecto", "proyectos", "project", "projects"}
             )
@@ -655,6 +757,24 @@ class ProfileService:
                 for key, entity in visible_entities.items()
                 if key[0] == "project" and not self._is_academic_project(entity)
             ]
+        elif intent in {"professional_overview", "professional_representation_overview"}:
+            preferred_keys = [
+                ("document", "career_story"),
+                ("document", "professional_summary"),
+                ("document", "identity"),
+                ("experience", "prixz"),
+            ]
+            ordered_keys = [key for key in preferred_keys if key in visible_entities]
+            ordered_keys.extend(
+                key
+                for key in visible_entities
+                if key[0] == "experience" and key not in ordered_keys
+            )
+            ordered_keys.extend(
+                key
+                for key in visible_entities
+                if key[0] == "project" and key not in ordered_keys
+            )
         elif intent == "career_overview":
             preferred_types = [
                 ("document", "career_story"),

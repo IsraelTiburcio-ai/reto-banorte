@@ -30,7 +30,7 @@ HTTP body <= 64 KiB
 
 The adapter continues to enforce:
 
-- at most 32 transcript messages;
+- at most 128 transcript messages;
 - at most 32 content parts per message;
 - at most 12,000 characters in a simple input or individual message/content
   text;

@@ -305,6 +305,8 @@ def _states_insufficient_evidence(text: str) -> bool:
             "no encontre evidencia publica suficiente",
             "no hay evidencia publica suficiente",
             "evidencia publica insuficiente",
+            "no tengo información suficiente",
+            "no tengo informacion suficiente",
             "no esta documentado",
             "no esta documentada",
         ),

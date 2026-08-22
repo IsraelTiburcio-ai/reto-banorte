@@ -38,6 +38,11 @@ class AgentCore:
 
         return self._policy
 
+    def public_identity_name(self) -> str | None:
+        """Expose the canonical public name for trusted local identity replies."""
+
+        return self._profile_service.public_identity_name()
+
     @property
     def is_ready(self) -> bool:
         """Report whether the initialized local retrieval boundary is usable."""

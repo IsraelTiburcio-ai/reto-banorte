@@ -98,7 +98,7 @@ The application applies conservative limits:
 | --- | ---: |
 | request body | 64 KiB |
 | single text or message | 12,000 characters |
-| transcript messages | 32 |
+| transcript messages | 128 |
 | content parts in one message | 32 |
 | generation history window | 8 messages / 8,000 characters |
 

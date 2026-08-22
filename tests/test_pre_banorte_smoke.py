@@ -11,6 +11,7 @@ from app.api.open_responses_formatter import (
     GREETING_RESPONSE_TEXT,
     INSUFFICIENT_EVIDENCE_TEXT,
     SENSITIVE_REQUEST_RESPONSE_TEXT,
+    UNKNOWN_TECHNOLOGY_RESPONSE_TEXT,
 )
 from scripts.pre_banorte_smoke import (
     PROPERTY_DIMENSIONS,
@@ -56,7 +57,7 @@ class PreBanorteSmokeTests(unittest.TestCase):
             "social-greeting-en": ENGLISH_GREETING_RESPONSE_TEXT,
             "meta-agent-identity": AGENT_IDENTITY_RESPONSE_TEXT,
             "sensitive-password": SENSITIVE_REQUEST_RESPONSE_TEXT,
-            "unknown-kubernetes": INSUFFICIENT_EVIDENCE_TEXT,
+            "unknown-kubernetes": UNKNOWN_TECHNOLOGY_RESPONSE_TEXT,
         }
         for case_id, answer in answers.items():
             with self.subTest(case_id=case_id):
