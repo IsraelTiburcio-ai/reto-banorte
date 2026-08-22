@@ -160,6 +160,16 @@ def _replace_cmd(text: str, shell_command: str) -> str:
     )
 
 
+def _move_setup_run_before_required_copies(text: str) -> str:
+    setup_start = text.index("RUN python -m pip install")
+    setup_end = text.index("\n\nCOPY data/profile.json", setup_start)
+    setup_block = text[setup_start:setup_end]
+    without_setup = text[:setup_start] + text[setup_end + 2 :]
+    marker = "WORKDIR /app\n\n"
+    _require(marker in without_setup, "WORKDIR insertion point was not found")
+    return without_setup.replace(marker, marker + setup_block + "\n\n", 1)
+
+
 def _setup_run_matches(argument: str) -> bool:
     command = _normalize_command(_strip_shell_comment(argument))
     try:
@@ -186,6 +196,21 @@ def _copy_pairs(instructions: list[Instruction]) -> list[tuple[str, str]]:
         _require(len(tokens) >= 2, "COPY must have a source and destination")
         destination = tokens[-1]
         pairs.extend((source, destination) for source in tokens[:-1])
+    return pairs
+
+
+def _copy_pair_indices(
+    instructions: list[Instruction],
+) -> dict[tuple[str, str], list[int]]:
+    pairs: dict[tuple[str, str], list[int]] = {}
+    for index, (opcode, argument) in enumerate(instructions):
+        if opcode != "COPY":
+            continue
+        tokens = [token for token in shlex.split(argument) if not token.startswith("--")]
+        _require(len(tokens) >= 2, "COPY must have a source and destination")
+        destination = tokens[-1]
+        for source in tokens[:-1]:
+            pairs.setdefault((source, destination), []).append(index)
     return pairs
 
 
@@ -262,6 +287,16 @@ def _validate_env_ignore_policy(lines: list[str]) -> None:
                 "only the exact .env.example negation is allowed for env files"
             )
 
+    effective_rules = [
+        rule
+        for raw_line in lines
+        if (rule := raw_line.strip()) and not rule.startswith("#")
+    ]
+    _require(
+        ".env.*" in effective_rules,
+        "the broad .env.* exclusion is required by the repository contract",
+    )
+
 
 def _validate_data_ignore_policy(lines: list[str]) -> None:
     """Reject any effective broad rule that could hide the profile directory."""
@@ -287,11 +322,13 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         base_images == ["python:3.11-slim-bookworm"],
         "the effective final stage must be the single expected slim Python image",
     )
+    _require("ENTRYPOINT" not in opcodes, "ENTRYPOINT is not allowed by the runtime contract")
 
     workdirs = [argument.strip() for opcode, argument in instructions if opcode == "WORKDIR"]
     _require(workdirs == ["/app"], "effective WORKDIR must be /app")
 
     copy_pairs = _copy_pairs(instructions)
+    copy_indices = _copy_pair_indices(instructions)
     for expected in (
         ("pyproject.toml", "/tmp/build/pyproject.toml"),
         ("app", "/tmp/build/app"),
@@ -307,19 +344,62 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         "Dockerfile must not copy local environment files",
     )
 
-    run_commands = [argument for opcode, argument in instructions if opcode == "RUN"]
+    setup_indices = [
+        index
+        for index, (opcode, argument) in enumerate(instructions)
+        if opcode == "RUN" and _setup_run_matches(argument)
+    ]
     _require(
-        any(_setup_run_matches(command) for command in run_commands),
-        "Dockerfile must contain the exact ordered runtime setup RUN",
+        len(setup_indices) == 1,
+        "Dockerfile must contain exactly one exact ordered runtime setup RUN",
+    )
+    profile_chown_indices = [
+        index
+        for index, (opcode, argument) in enumerate(instructions)
+        if opcode == "RUN"
+        and _normalize_command(_strip_shell_comment(argument))
+        == "chown app:app /app/data/profile.json"
+    ]
+    _require(
+        len(profile_chown_indices) == 1,
+        "Dockerfile must contain the exact profile ownership RUN",
     )
 
     users = [argument.strip() for opcode, argument in instructions if opcode == "USER"]
     _require(users and users[-1] == "app:app", "final effective USER must be app:app")
 
+    required_order = (
+        copy_indices.get(("pyproject.toml", "/tmp/build/pyproject.toml"), []),
+        copy_indices.get(("app", "/tmp/build/app"), []),
+        setup_indices,
+        copy_indices.get(("data/profile.json", "/app/data/profile.json"), []),
+        profile_chown_indices,
+        [
+            index
+            for index, (opcode, argument) in enumerate(instructions)
+            if opcode == "USER" and argument.strip() == "app:app"
+        ],
+        [index for index, opcode in enumerate(opcodes) if opcode == "CMD"],
+    )
+    _require(
+        all(len(indices) == 1 for indices in required_order),
+        "each required runtime instruction must occur exactly once",
+    )
+    required_order_indices = [indices[0] for indices in required_order]
+    _require(
+        required_order_indices == sorted(required_order_indices),
+        "runtime instructions must preserve the repository's required order",
+    )
+
     _declared_names(instructions)
 
     commands = [argument for opcode, argument in instructions if opcode == "CMD"]
     _require(commands, "Dockerfile must define CMD")
+    cmd_indices = [index for index, opcode in enumerate(opcodes) if opcode == "CMD"]
+    _require(
+        cmd_indices[-1] == len(instructions) - 1,
+        "CMD must be the final effective Dockerfile instruction",
+    )
     try:
         command = json.loads(commands[-1])
     except json.JSONDecodeError as exc:
@@ -341,11 +421,11 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
 
     _validate_env_ignore_policy(dockerignore_lines)
     _validate_data_ignore_policy(dockerignore_lines)
-    _require(_dockerignore_ignores(".env", dockerignore_lines), ".env must remain ignored")
-    _require(
-        _dockerignore_ignores(".env.local", dockerignore_lines),
-        "local environment variants must remain ignored",
-    )
+    for env_path in (".env", ".env.local", ".env.production", ".env.test"):
+        _require(
+            _dockerignore_ignores(env_path, dockerignore_lines),
+            f"{env_path} must remain ignored",
+        )
     _require(
         not _dockerignore_ignores(".env.example", dockerignore_lines),
         ".env.example must remain allowed by the documented policy",
@@ -515,6 +595,16 @@ class ContainerizationContractTests(unittest.TestCase):
                 "useradd --system --gid app", "echo missing-user"
             ),
             "data directory exclusion": self.dockerignore_lines + ["data"],
+            "setup before required copies": _move_setup_run_before_required_copies(
+                self.dockerfile
+            ),
+            "entrypoint false": self.dockerfile + '\nENTRYPOINT ["false"]\n',
+            "effective instruction after cmd": self.dockerfile
+            + "\nRUN rm -rf /app/app\n",
+            "specific env rule replaces wildcard": [
+                ".env" if rule != ".env.*" else ".env.local"
+                for rule in self.dockerignore_lines
+            ],
         }
         for name, mutation in mutations.items():
             with self.subTest(mutation=name):
