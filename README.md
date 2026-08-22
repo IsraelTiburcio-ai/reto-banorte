@@ -6,7 +6,7 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 8 — Security & Observability
+Phase 9 — Containerization / Docker
 
 La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
 
@@ -162,6 +162,51 @@ Validación:
 python3 -m unittest discover -v tests
 python3 -m evals.runner
 ```
+
+## Phase 9 — Containerization / Docker
+
+La imagen se construye desde el `pyproject.toml` canónico, incluye únicamente
+el runtime de la aplicación y `data/profile.json`, y ejecuta Uvicorn como un
+usuario no root. El contenedor escucha en `0.0.0.0`, respeta `PORT` y conserva
+los logs estructurados en stdout.
+
+Build local:
+
+```bash
+docker build -t reto-banorte-cv-agent:local .
+```
+
+Run sin proveedor:
+
+```bash
+docker run --rm -p 8080:8080 reto-banorte-cv-agent:local
+```
+
+Configuración de runtime con placeholders — nunca uses claves reales en el
+Dockerfile, argumentos de build, README o imagen:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -e AGENT_API_KEY="<agent-api-key>" \
+  -e OPENAI_API_KEY="<openai-api-key>" \
+  -e OPENAI_MODEL="gpt-5.6-luna" \
+  reto-banorte-cv-agent:local
+```
+
+`AGENT_API_KEY` protege nuestros endpoints privados; `OPENAI_API_KEY` es la
+credencial outbound del proveedor. Ambas se inyectan únicamente al ejecutar
+el contenedor. `.env` está excluido del contexto y no se copia a la imagen.
+
+Endpoints para smoke tests:
+
+- `GET /health` — liveness, no requiere proveedor.
+- `GET /ready` — readiness local, no llama a OpenAI.
+- `POST /v1/responses` — contrato interoperable; requiere auth si
+  `AGENT_API_KEY` está configurada.
+
+Phase 9 solo prepara la imagen. Cloud Run, GCP, Artifact Registry, Secret
+Manager, IAM, Compose, Kubernetes y deployment permanecen fuera de alcance.
 
 ## Ejecución local
 
