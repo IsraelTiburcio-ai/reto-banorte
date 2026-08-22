@@ -1,0 +1,6 @@
+"""Conservative transport limits for public HTTP boundaries."""
+
+MAX_REQUEST_BODY_BYTES = 64 * 1024
+MAX_INPUT_TEXT_CHARS = 12_000
+MAX_TRANSCRIPT_MESSAGES = 32
+MAX_CONTENT_PARTS = 32

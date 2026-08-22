@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.core import AgentCore
+from app.core.limits import MAX_INPUT_TEXT_CHARS
 from app.models.agent import AgentEvidence, AgentPolicy, PreparedAgentTurn
 
 
@@ -20,8 +21,12 @@ class HealthResponse(StrictApiModel):
     status: Literal["ok"] = "ok"
 
 
+class ReadinessResponse(StrictApiModel):
+    status: Literal["ready"] = "ready"
+
+
 class AgentPrepareRequest(StrictApiModel):
-    query: str = Field(strict=True)
+    query: str = Field(strict=True, max_length=MAX_INPUT_TEXT_CHARS)
     max_results: int = Field(
         default=AgentCore.DEFAULT_MAX_RESULTS,
         ge=1,

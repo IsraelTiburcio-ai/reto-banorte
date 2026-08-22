@@ -6,13 +6,14 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 7 — Evals
+Phase 8 — Security & Observability
 
 La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
 
 Endpoints actuales:
 
 - `GET /health`
+- `GET /ready`
 - `POST /agent/prepare`
 - `POST /v1/responses`
 
@@ -103,6 +104,52 @@ No se usa LLM-as-a-judge en esta fase. El modo offline no guarda respuestas
 generadas como verdad absoluta y no imprime secretos. El follow-up
 `¿Y cuál usabas más?` permanece como limitación conocida y puede fallar por
 coreferencia.
+
+## Phase 8 — Security & Observability
+
+Phase 8 agrega controles pequeños y explícitos en el borde HTTP sin mover
+retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
+
+- `AGENT_API_KEY` habilita autenticación Bearer opcional para
+  `/agent/prepare` y `/v1/responses`; no es la API key de OpenAI.
+- `GET /health` y `GET /ready` permanecen públicos para liveness/readiness y no
+  llaman al proveedor.
+- Cada respuesta incluye un `X-Request-ID` nuevo generado por el servidor.
+- Los logs son JSON de una línea y solo contienen campos operativos seguros:
+  ruta, estado, duración, categoría de error, estado del agente y modelo del
+  proveedor. No registran payloads, respuestas, evidencia, headers, cookies ni
+  secretos.
+- Se rechazan cuerpos mayores a 64 KiB, texto total mayor a 12,000 caracteres,
+  transcripts de más de 32 mensajes y mensajes de más de 32 partes.
+- Los errores inesperados se convierten en respuestas sanitizadas; los errores
+  422 existentes de `/agent/prepare` se conservan.
+
+Plantilla local segura:
+
+```bash
+cp .env.example .env
+```
+
+Configura `AGENT_API_KEY` únicamente en el entorno donde se necesite proteger
+la API. Con la key configurada, la UI/API de Banorte debe enviar una credencial
+del agente como header conceptual:
+
+```text
+Authorization: Bearer <AGENT_API_KEY>
+```
+
+La API key de la UI de Banorte debe corresponder a `AGENT_API_KEY`; nunca se
+debe introducir `OPENAI_API_KEY` en Banorte. `OPENAI_API_KEY` continúa siendo
+exclusivamente una credencial de salida hacia el proveedor y nunca debe
+aparecer en código, logs, README o tests. El rate limiting distribuido, WAF,
+IAM, tracing/metrics backend, Docker y despliegue quedan fuera de Phase 8.
+
+Validación:
+
+```bash
+python3 -m unittest discover -v tests
+python3 -m evals.runner
+```
 
 ## Ejecución local
 
