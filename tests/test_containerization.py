@@ -338,6 +338,15 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         opcodes == expected_opcodes,
         "Dockerfile effective instruction sequence must match the repository contract",
     )
+    env_arguments = [
+        _normalize_command(argument)
+        for opcode, argument in instructions
+        if opcode == "ENV"
+    ]
+    _require(
+        env_arguments == ["PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1"],
+        "ENV must contain exactly the approved Python runtime configuration",
+    )
     base_images = [argument for opcode, argument in instructions if opcode == "FROM"]
     _require(
         base_images == ["python:3.11-slim-bookworm"],
@@ -651,8 +660,16 @@ class ContainerizationContractTests(unittest.TestCase):
                 "\nUSER app:app", "\nLABEL phase=test\n\nUSER app:app", 1
             ),
             "broad nested data exclusion": self.dockerignore_lines + ["**/data/**"],
+            "invalid runtime env": self.dockerfile.replace(
+                "PYTHONUNBUFFERED=1", "PATH=/nonexistent", 1
+            ),
+            "extra runtime env": self.dockerfile.replace(
+                "PYTHONUNBUFFERED=1",
+                "PYTHONUNBUFFERED=1 \\\n+    PYTHONHOME=/nonexistent",
+                1,
+            ),
         }
-        self.assertEqual(len(mutations), 35)
+        self.assertEqual(len(mutations), 37)
         for name, mutation in mutations.items():
             with self.subTest(mutation=name):
                 if isinstance(mutation, list):
