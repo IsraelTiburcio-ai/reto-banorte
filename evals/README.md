@@ -21,7 +21,8 @@ El dataset usa estas expectativas de ranking:
 - `required_evidence_ids`: deben aparecer en cualquier posición;
 - `top_evidence_ids` + `top_k`: deben aparecer dentro del prefijo rankeado;
 - `forbidden_evidence_ids`: solo se comprueban cuando la lista no está vacía;
-  una lista vacía se reporta como `NOT_EVALUATED`, no como PASS.
+  una lista vacía significa que no existe esa expectativa y se reporta como
+  `N/A`.
 
 El reporte separa explícitamente:
 

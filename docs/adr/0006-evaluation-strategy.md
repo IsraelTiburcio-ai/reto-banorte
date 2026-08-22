@@ -38,9 +38,9 @@ El modo offline ejecuta `AgentCore` con `ProfileService` local y verifica:
 - ausencia de marcadores `internal_summary`, `do_not_expose` y API keys;
 - señal literal de claims prohibidos dentro de la evidencia serializada.
 
-Una lista vacía de evidencia prohibida es `NOT_EVALUATED`, no PASS. Las
-expectativas de ranking no exigen que toda evidencia adicional sea idéntica a
-una lista cerrada.
+Una lista vacía de evidencia prohibida significa que no existe esa expectativa
+para el caso y es `N/A`, no `NOT_EVALUATED` ni PASS. Las expectativas de ranking
+no exigen que toda evidencia adicional sea idéntica a una lista cerrada.
 
 `required_facts` no se evalúa mediante substring ni matching semántico falso.
 Los checks `required_facts_semantics`, `forbidden_claims_semantics` y
