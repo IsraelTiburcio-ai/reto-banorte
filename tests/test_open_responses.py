@@ -156,6 +156,50 @@ class OpenResponsesApiTests(unittest.TestCase):
             [("user", "first"), ("assistant", "history")],
         )
 
+    def test_parley_assistant_status_metadata_replays_as_context_only(self) -> None:
+        assistant_text = "Previous assistant answer about the public profile."
+        response = self.post(
+            {
+                "input": [
+                    {"role": "user", "type": "message", "content": "MCP"},
+                    {
+                        "id": "msg_previous_123",
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": assistant_text,
+                                "annotations": [],
+                            }
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "¿Y para qué lo utilizaba?",
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request = self.text_generator.requests[-1]
+        self.assertEqual(request.query, "¿Y para qué lo utilizaba?")
+        self.assertEqual(
+            [(item.role, item.text) for item in request.transcript],
+            [("user", "MCP"), ("assistant", assistant_text)],
+        )
+        self.assertIn(assistant_text, build_model_input(request))
+        self.assertNotIn(assistant_text, json.dumps(request.public_profile))
+        self.assertTrue(
+            all(
+                assistant_text not in json.dumps(item.data, ensure_ascii=False)
+                for item in request.evidence
+            )
+        )
+
     def test_input_text_parts_preserve_order(self) -> None:
         response = self.post(
             {

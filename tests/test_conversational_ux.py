@@ -192,6 +192,23 @@ class ConversationalUXTests(unittest.TestCase):
         self.assertNotIn("internal_summary", build_model_input(request))
         self.assertNotIn("do_not_expose", build_model_input(request))
 
+    def test_prompt_allows_general_knowledge_but_binds_israel_facts(self) -> None:
+        core = AgentCore()
+        request = TextGenerationRequest(
+            query="¿Qué es un data warehouse?",
+            transcript=(),
+            evidence=(),
+            policy=core.policy,
+            public_profile=core.public_profile(),
+        )
+
+        instructions = build_system_instructions(request).casefold()
+
+        self.assertIn("conocimiento general", instructions)
+        self.assertIn("afirmaciones factuales sobre israel", instructions)
+        self.assertIn("contexto público", instructions)
+        self.assertIn("nunca presentes conocimiento general", instructions)
+
 
 if __name__ == "__main__":
     unittest.main()

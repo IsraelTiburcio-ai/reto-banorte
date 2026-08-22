@@ -38,7 +38,7 @@ Flujo actual:
 
 `ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
 
-El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto grounded solo cuando existe evidencia; sin evidencia conserva el fallback fijo y evita la llamada al proveedor. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto mediante el provider en cada request textual válido, incluso cuando el retrieval dirigido está vacío; recibe el contexto público base y evidencia específica cuando existe. Los hechos sobre Israel siguen limitados al contexto/evidence públicos y grounded. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
 
 ## Open Responses subset
 
@@ -61,7 +61,7 @@ export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
 
 `model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
 
-El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
+El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe el contexto público base y la evidencia pública aprobada por `AgentCore`; cualquier hecho sobre Israel debe permanecer grounded en esos datos.
 
 ## Phase 7 — Evals
 

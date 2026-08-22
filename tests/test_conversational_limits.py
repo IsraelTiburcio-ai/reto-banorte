@@ -200,6 +200,35 @@ class ConversationalLimitTests(unittest.TestCase):
         self.assertLess(request_sizes[50], MAX_REQUEST_BODY_BYTES)
         self.assertEqual(len(self.generator.requests), 50)
 
+    def test_history_char_budget_is_independent_of_message_count(self) -> None:
+        history_messages = [
+            {
+                "role": "assistant" if index % 2 else "user",
+                "type": "message",
+                "content": f"historical context {index} " + ("x" * 2200),
+            }
+            for index in range(5)
+        ]
+        current_question = "¿Qué experiencia tiene Israel con MCP?"
+        messages = history_messages + [
+            {"role": "user", "type": "message", "content": current_question}
+        ]
+
+        response = self.client.post("/v1/responses", json={"input": messages})
+
+        self.assertEqual(response.status_code, 200)
+        request = self.generator.requests[-1]
+        self.assertLess(len(messages), MAX_GENERATION_HISTORY_MESSAGES)
+        self.assertGreater(
+            sum(len(item["content"]) for item in history_messages), 8_000
+        )
+        history_chars = sum(len(item.text) for item in request.transcript)
+        self.assertLessEqual(history_chars, 8_000)
+        self.assertLess(history_chars, sum(len(item["content"]) for item in history_messages))
+        self.assertTrue(any(item.text.startswith("historical context 4") for item in request.transcript))
+        self.assertEqual(request.query, current_question)
+        self.assertNotIn(current_question, [item.text for item in request.transcript])
+
 
 if __name__ == "__main__":
     unittest.main()
