@@ -126,8 +126,12 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
   secretos.
 - El límite real del body es 64 KiB (65,536 bytes) en los dos POST protegidos,
   incluso sin `Content-Length` o cuando llegan varios chunks. Además se
-  rechaza texto total mayor a 12,000 caracteres, transcripts de más de 32
-  mensajes y mensajes de más de 32 partes.
+  rechaza texto simple, mensaje o parte de contenido mayor a 12,000 caracteres,
+  transcripts de más de 32 mensajes y mensajes de más de 32 partes. Un transcript histórico
+  válido puede superar el antiguo total agregado mientras el body permanezca
+  dentro de 64 KiB; antes de retrieval/generación se conserva solo una ventana
+  reciente de hasta 8 mensajes y 8,000 caracteres de historial. La pregunta
+  actual se conserva completa y viaja una sola vez como `current_user_question`.
 - El límite de 64 KiB no es global: las rutas públicas conservan el `receive`
   ASGI original y no consumen ni reconstruyen su body mediante este middleware.
 - `provider_invoked` solo es `true` cuando el generador confirma un intento
@@ -239,13 +243,16 @@ Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
 intended; generated-answer cases are reported for manual review.
 
 The lexical retriever also has bounded deterministic overview modes for
-identity, career, academic-project, professional-project, and project
-questions in Spanish and English. Clearly referential follow-ups may use up to
-three user messages total (the last two prior user messages plus the current
-one) to enrich retrieval. Independent questions are not retried with prior
-context. Assistant text is never treated as evidence or instructions. Results remain ordered public
-evidence copies only; they do not infer dates, ownership, relevance, skills, or
-technologies that are not present in the profile.
+identity, career, education, cloud skills, academic-project,
+professional-project, and project questions in Spanish and English. Clearly
+referential follow-ups may use up to three user messages total (the last two
+prior user messages plus the current one) to enrich retrieval. Independent
+questions are not retried with prior context. Assistant text is never treated
+as evidence or retrieval instructions. A bounded recent transcript may still be
+provided to generation as conversation data, but every factual claim must come
+from public evidence. Results remain ordered public evidence copies only; they
+do not infer dates, ownership, relevance, skills, or technologies that are not
+present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
 
 Phase 10 does not add conversation memory, provider streaming, new

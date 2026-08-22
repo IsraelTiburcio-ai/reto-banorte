@@ -259,6 +259,27 @@ class ProfileSearchTests(unittest.TestCase):
         result_ids = self.ids_for("¿Qué experiencia tiene con Python?")
         self.assertIn("python", result_ids)
 
+    def test_education_overview_queries_retrieve_public_education(self) -> None:
+        for query in (
+            "Cuéntame sobre su trayectoria escolar",
+            "¿Cuál es su formación académica?",
+            "¿Dónde estudió?",
+        ):
+            with self.subTest(query=query):
+                results = self.service.search(query)
+                result_ids = {item.entity_id for item in results}
+                self.assertIn("unam-fes-acatlan-mac", result_ids)
+                self.assertIn("enp-5-unam", result_ids)
+                self.assertTrue(all(item.entity_type == "education" for item in results))
+
+    def test_generic_cloud_queries_retrieve_calibrated_cloud_skills(self) -> None:
+        for query in ("¿Tiene experiencia con la nube?", "¿Qué sabe de cloud computing?"):
+            with self.subTest(query=query):
+                result_ids = self.ids_for(query)
+                self.assertTrue({"aws", "gcp", "oracle-cloud"} <= result_ids)
+        aws_results = self.service.search("¿Tiene experiencia con AWS?")
+        self.assertEqual([item.entity_id for item in aws_results[:1]], ["aws"])
+
     def test_natural_language_python_and_fastapi_query_is_relevant(self) -> None:
         results = self.service.search("¿Qué experiencia tiene con Python y FastAPI?")
         result_ids = {result.entity_id for result in results}

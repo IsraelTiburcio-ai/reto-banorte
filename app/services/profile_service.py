@@ -136,6 +136,27 @@ class ProfileService:
         "perfil",
         "dame",
     }
+    _EDUCATION_OVERVIEW_TERMS = {
+        "academica",
+        "academico",
+        "carrera",
+        "colegio",
+        "donde",
+        "educacion",
+        "escuela",
+        "escolar",
+        "estudio",
+        "estudios",
+        "formacion",
+        "institucion",
+        "licenciatura",
+        "preparatoria",
+        "school",
+        "studies",
+        "trayectoria",
+        "universidad",
+    }
+    _CLOUD_GENERIC_TERMS = {"cloud", "computing", "nube"}
     _OVERVIEW_NAME_TERMS = {"israel", "tiburcio"}
     _REQUIRED_SECTIONS: tuple[str, ...] = (
         "metadata",
@@ -462,6 +483,45 @@ class ProfileService:
         ):
             return "identity_overview"
 
+        education_markers = raw_terms.intersection(
+            cls._EDUCATION_OVERVIEW_TERMS
+            | {"academica", "academico", "academic", "school", "studies"}
+        )
+        if education_markers and (
+            "trayectoria" in raw_terms
+            or raw_terms.intersection(
+                {
+                    "escolar",
+                    "formacion",
+                    "estudio",
+                    "estudios",
+                    "educacion",
+                    "universidad",
+                    "escuela",
+                    "preparatoria",
+                    "licenciatura",
+                    "school",
+                    "studies",
+                }
+            )
+        ) and raw_terms <= (
+            cls._EDUCATION_OVERVIEW_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"academic", "school", "studies", "what", "which", "has"}
+        ):
+            return "education_overview"
+
+        if (
+            raw_terms.intersection(cls._CLOUD_GENERIC_TERMS)
+            and raw_terms
+            <= cls._CLOUD_GENERIC_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"sabe", "saber", "conoce", "conocimiento", "nivel", "what"}
+        ):
+            return "cloud_overview"
+
         # A one-token meaningful query such as ``proyectos`` should still be
         # useful, while an arbitrary noise-only query remains empty.
         if terms == {"proyectos"} or terms == {"proyecto"}:
@@ -478,6 +538,14 @@ class ProfileService:
             for entity_type, entity_id, entity in self._iter_search_entities()
             if (visible_entity := self._visible_entity(entity, visibility)) is not None
         }
+        if intent == "education_overview":
+            visible_entities.update(
+                {
+                    (entity_type, entity_id): visible_entity
+                    for entity_type, entity_id, entity in self._iter_education_entities()
+                    if (visible_entity := self._visible_entity(entity, visibility)) is not None
+                }
+            )
 
         if intent == "project_overview":
             ordered_keys = [
@@ -518,6 +586,20 @@ class ProfileService:
             ]
             ordered_keys = [
                 key for key in preferred_types if key in visible_entities
+            ]
+        elif intent == "education_overview":
+            ordered_keys = [
+                key for key in visible_entities if key[0] == "education"
+            ]
+        elif intent == "cloud_overview":
+            ordered_keys = [
+                key
+                for key, entity in visible_entities.items()
+                if key[0] == "skill"
+                and "cloud computing" in {
+                    self._normalize(value)
+                    for value in self._flatten_strings(entity.get("contexts"))
+                }
             ]
         else:
             return []
@@ -758,6 +840,20 @@ class ProfileService:
             value = self._profile.get(key)
             if isinstance(value, dict):
                 yield "document", key, cast(ProfileMapping, value)
+
+    def _iter_education_entities(
+        self,
+    ) -> Iterator[tuple[str, str, ProfileMapping]]:
+        education = self._profile.get("education")
+        if isinstance(education, dict):
+            formal = education.get("formal")
+            if isinstance(formal, list):
+                for item in formal:
+                    if isinstance(item, dict) and isinstance(item.get("id"), str):
+                        yield "education", cast(str, item["id"]), cast(ProfileMapping, item)
+            academic_origin = education.get("academic_origin")
+            if isinstance(academic_origin, dict):
+                yield "education", "academic_origin", cast(ProfileMapping, academic_origin)
 
     def _build_relationship_terms(
         self, visibility: VisibilityPolicy
@@ -1007,7 +1103,14 @@ class ProfileService:
 
     @staticmethod
     def _title_for(entity: ProfileMapping, entity_id: str) -> str:
-        for key in ("name", "title", "organization", "program", "full_name"):
+        for key in (
+            "name",
+            "title",
+            "organization",
+            "institution",
+            "program",
+            "full_name",
+        ):
             value = entity.get(key)
             if isinstance(value, str) and value.strip():
                 return value

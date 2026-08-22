@@ -127,7 +127,7 @@ class LLMGenerationTests(unittest.TestCase):
         self.assertEqual(request.query, "MCP")
         self.assertEqual(
             [(item.role, item.text) for item in request.transcript],
-            [("user", "first"), ("assistant", "history"), ("user", "  MCP  ")],
+            [("user", "first"), ("assistant", "history")],
         )
         self.assertEqual(body["model"], "banorte-cv-agent")
 

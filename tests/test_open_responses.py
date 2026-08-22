@@ -18,6 +18,12 @@ from app.api.open_responses_schemas import (
     OpenResponsesErrorEnvelope,
     OpenResponsesResponse,
 )
+from app.core.limits import (
+    MAX_GENERATION_HISTORY_CHARS,
+    MAX_GENERATION_HISTORY_MESSAGES,
+    MAX_INPUT_TEXT_CHARS,
+    MAX_REQUEST_BODY_BYTES,
+)
 from app.llm.prompts import build_model_input
 from app.models.generation import TextGenerationRequest
 from app.models.retrieval import SearchResult, VisibilityPolicy
@@ -312,11 +318,20 @@ class OpenResponsesApiTests(unittest.TestCase):
         request = self.text_generator.requests[-1]
         self.assertEqual(
             [(message.role, message.text) for message in request.transcript],
-            [("user", "Hola"), ("assistant", "previous answer"), ("user", "MCP")],
+            [("user", "Hola"), ("assistant", "previous answer")],
         )
         prompt = build_model_input(request)
         self.assertNotIn("msg_example", prompt)
         self.assertNotIn("status", prompt)
+        prompt_payload = json.loads(prompt)
+        self.assertEqual(
+            prompt_payload["conversation"],
+            [
+                {"role": "user", "text": "Hola"},
+                {"role": "assistant", "text": "previous answer"},
+            ],
+        )
+        self.assertEqual(prompt_payload["current_user_question"], "MCP")
 
     def test_realistic_assistant_transcript_can_stream(self) -> None:
         response = self.post(
@@ -475,6 +490,82 @@ class OpenResponsesApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.profile_service.calls[-1][0], "public evidence")
 
+    def test_long_valid_transcript_is_accepted_but_generation_history_is_bounded(self) -> None:
+        history = []
+        for index in range(14):
+            history.extend(
+                [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": f"old user context {index} " + ("x" * 600),
+                    },
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": f"old assistant context {index} " + ("y" * 600),
+                    },
+                ]
+            )
+        history.extend(
+            [
+                {"type": "message", "role": "user", "content": "Háblame de MCP"},
+                {"type": "message", "role": "assistant", "content": "previous answer"},
+                {"type": "message", "role": "user", "content": "¿Y para qué lo utilizaba?"},
+            ]
+        )
+
+        response = self.post({"input": history, "store": False})
+
+        serialized_request = json.dumps(
+            {"input": history, "store": False}, ensure_ascii=False
+        ).encode("utf-8")
+        self.assertGreater(sum(len(item["content"]) for item in history), MAX_INPUT_TEXT_CHARS)
+        self.assertLess(len(serialized_request), MAX_REQUEST_BODY_BYTES)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Háblame de MCP", self.profile_service.calls[-1][0])
+        self.assertIn("¿Y para qué lo utilizaba?", self.profile_service.calls[-1][0])
+        request = self.text_generator.requests[-1]
+        self.assertEqual(request.query, "¿Y para qué lo utilizaba?")
+        self.assertLess(len(request.transcript), len(history))
+        self.assertLessEqual(len(request.transcript), MAX_GENERATION_HISTORY_MESSAGES)
+        self.assertLessEqual(
+            sum(len(message.text) for message in request.transcript),
+            MAX_GENERATION_HISTORY_CHARS,
+        )
+        self.assertNotIn(request.query, [message.text for message in request.transcript])
+
+    def test_current_user_question_near_limit_is_not_truncated(self) -> None:
+        current = "public evidence " + "x" * (MAX_INPUT_TEXT_CHARS - len("public evidence "))
+        response = self.post({"input": current})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.text_generator.requests[-1].query, current)
+
+    def test_long_transcript_streams_with_store_false(self) -> None:
+        history = []
+        for index in range(14):
+            history.extend(
+                [
+                    {"role": "user", "content": f"old context {index} " + ("x" * 500)},
+                    {"role": "assistant", "content": "previous answer " + ("y" * 500)},
+                ]
+            )
+        history.extend(
+            [
+                {"role": "user", "content": "MCP"},
+                {"role": "assistant", "content": "previous MCP answer"},
+                {"role": "user", "content": "¿Y para qué lo utilizaba?"},
+            ]
+        )
+        response = self.post({"input": history, "store": False, "stream": True})
+
+        self.assertEqual(response.status_code, 200)
+        events, terminal = self.parse_sse(response)
+        self.assertEqual(events[-1][0], "response.completed")
+        self.assertEqual(events[-1][1]["response"]["status"], "completed")
+        self.assertEqual(terminal, "data: [DONE]")
+
     def test_pure_greetings_use_fixed_response_without_retrieval_or_provider(self) -> None:
         for greeting in (
             "hola",
@@ -553,6 +644,11 @@ class OpenResponsesApiTests(unittest.TestCase):
             "¿Con quién estoy hablando?",
             "¿Qué puedes hacer?",
             "¿Qué te puedo preguntar?",
+            "¿Qué preguntas me sugieres hacerte?",
+            "¿Qué cosas puedo preguntarte sobre Israel?",
+            "¿Qué debería preguntarte?",
+            "Dame ideas de preguntas",
+            "¿Sobre qué te puedo preguntar?",
             "¿Para qué sirves?",
             "¿Puedes responder preguntas sobre su CV?",
         ):
@@ -1237,6 +1333,59 @@ class RealProfileFollowupTests(unittest.TestCase):
         self.assertIn("mba-yo", evidence_ids)
         self.assertNotIn("internal-project", evidence_ids)
         self.assertNotIn("internal-only", self.profile_service.calls[-1][0])
+
+    def test_long_transcript_independent_python_question_is_not_contaminated(self) -> None:
+        messages = []
+        for index in range(12):
+            messages.extend(
+                [
+                    {"role": "user", "content": f"Cuéntame sobre proyectos {index}"},
+                    {"role": "assistant", "content": "Respuesta anterior sobre proyectos."},
+                ]
+            )
+        messages.append({"role": "user", "content": "¿Qué nivel tiene Israel en Python?"})
+
+        response = self.client.post(
+            "/v1/responses", json={"input": messages, "store": False}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.profile_service.calls), 1)
+        self.assertEqual(
+            self.profile_service.calls[0][0], "¿Qué nivel tiene Israel en Python?"
+        )
+        self.assertIn("python", {item.entity_id for item in self._last_evidence()})
+        self.assertLess(len(self.text_generator.requests[-1].transcript), len(messages))
+
+    def test_long_transcript_referential_question_keeps_recent_mcp_context(self) -> None:
+        messages = []
+        for index in range(11):
+            messages.extend(
+                [
+                    {"role": "user", "content": f"Tema histórico {index}"},
+                    {"role": "assistant", "content": "Respuesta histórica."},
+                ]
+            )
+        messages.extend(
+            [
+                {"role": "user", "content": "Háblame de MCP"},
+                {"role": "assistant", "content": "Respuesta previa sobre MCP."},
+                {"role": "user", "content": "¿Y para qué lo utilizaba?"},
+            ]
+        )
+
+        response = self.client.post(
+            "/v1/responses", json={"input": messages, "store": False}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.profile_service.calls), 2)
+        self.assertIn("MCP", self.profile_service.calls[-1][0])
+        self.assertNotIn("Respuesta previa", self.profile_service.calls[-1][0])
+        evidence_ids = {item.entity_id for item in self._last_evidence()}
+        self.assertTrue({"mcp", "mcp-analytics", "mcp-order-status"} <= evidence_ids)
+        generation_history = self.text_generator.requests[-1].transcript
+        self.assertLessEqual(len(generation_history), 8)
 
     def _last_evidence(self):
         return self.text_generator.requests[-1].evidence

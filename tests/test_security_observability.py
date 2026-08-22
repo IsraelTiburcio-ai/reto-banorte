@@ -479,6 +479,23 @@ class SecurityObservabilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.json()["error"]["code"], "input_too_large")
 
+        oversized_message = {
+            "type": "message",
+            "role": "assistant",
+            "content": "x" * (MAX_INPUT_TEXT_CHARS + 1),
+        }
+        response = client.post(
+            "/v1/responses",
+            json={
+                "input": [
+                    oversized_message,
+                    {"type": "message", "role": "user", "content": "MCP"},
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["error"]["code"], "input_too_large")
+
         response = client.post(
             "/v1/responses", json={"input": "x" * (MAX_REQUEST_BODY_BYTES + 1)}
         )
