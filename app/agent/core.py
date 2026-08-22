@@ -38,6 +38,14 @@ class AgentCore:
 
         return self._policy
 
+    @property
+    def is_ready(self) -> bool:
+        """Report whether the initialized local retrieval boundary is usable."""
+
+        return isinstance(self._profile_service, ProfileService) and isinstance(
+            self._policy, AgentPolicy
+        )
+
     def prepare(
         self,
         query: str,

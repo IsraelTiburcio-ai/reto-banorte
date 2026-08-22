@@ -43,6 +43,12 @@ for local development. When configured, `POST /agent/prepare` and
 missing, malformed, or incorrect credentials with HTTP 401. `/health` and
 `/ready` remain public so a platform can probe the service.
 
+Authentication is enforced by the ASGI boundary before either protected route
+can read, parse, or validate its request body. Therefore an unauthenticated
+request receives 401 even when its body is absent, invalid JSON, or otherwise
+would produce a FastAPI 422. After authentication, each route preserves its
+existing payload validation contract.
+
 The comparison is constant-time after basic header validation. The server
 always generates its own request ID; a client-supplied `X-Request-ID` is not
 trusted or reused.
@@ -61,6 +67,13 @@ generation start/completion/failure, and sanitized request failure categories.
 Safe fields are limited to method, path, status, duration, request ID, agent
 status, provider-invoked flag, provider model name, input character count, and
 stable error categories.
+
+`provider_invoked` is true only when the provider-neutral generator reports
+that an outbound provider request was actually attempted. Missing
+`OPENAI_API_KEY` therefore remains false, while provider auth, timeout, and
+rate-limit responses after an attempted call are true. `input_chars` is the
+total character count of accepted textual request/transcript content; it never
+contains the content itself.
 
 The logger does not record request bodies, prompts, generated text, evidence,
 authorization headers, cookies, API keys, stack traces, or arbitrary exception
@@ -88,17 +101,23 @@ The application applies conservative limits:
 | transcript messages | 32 |
 | content parts in one message | 32 |
 
-The body is checked using the declared length and again at the Open Responses
-route after reading it. These checks reduce accidental abuse but are not a
-complete denial-of-service control: a production gateway should also enforce
-connection, timeout, concurrency, and streaming/chunk limits.
+The ASGI boundary checks the declared length as an early optimization and also
+counts bytes while reading chunks for both protected POST endpoints. It
+buffers at most the permitted body and replays a valid body to FastAPI, so
+`65,536` bytes is accepted and `65,537` bytes is rejected even without a
+`Content-Length` header. The byte limit is separate from the character limit.
+These checks reduce accidental abuse but are not a complete denial-of-service
+control: a production gateway should also enforce connection, timeout,
+concurrency, and streaming/chunk limits.
 
 ## Health and readiness
 
 `GET /health` remains the liveness contract and returns `{"status":"ok"}`.
-`GET /ready` returns `{"status":"ready"}` when the application can construct
-its local AgentCore/ProfileService boundary. Neither endpoint calls OpenAI,
-reads a request body, or exposes profile content.
+`GET /ready` returns `{"status":"ready"}` only when the initialized
+AgentCore/profile retrieval boundary, policy, and Open Responses adapter are
+usable and consistent. It returns HTTP 503 with a sanitized message when an
+essential local component is unavailable. Neither endpoint calls OpenAI, reads
+a request body, or exposes profile content.
 
 ## Deliberately out of scope
 

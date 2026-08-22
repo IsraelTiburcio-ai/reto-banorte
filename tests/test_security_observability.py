@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -44,6 +45,7 @@ class SafeProviderError(TextGenerationError):
 
 
 class SafeErrorGenerator:
+    provider_request_attempted = True
     provider_model = "test-provider-model"
 
     def generate(self, request: TextGenerationRequest) -> str:
@@ -70,6 +72,86 @@ class LogCapture(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         self.messages.append(record.getMessage())
+
+
+class TrackingGenerator:
+    provider_model = "tracked-provider-model"
+
+    def __init__(self, text: str = "tracked generated response") -> None:
+        self.text = text
+        self.provider_request_attempted = False
+
+    def generate(self, request: TextGenerationRequest) -> str:
+        self.provider_request_attempted = True
+        return self.text
+
+
+async def call_asgi(
+    app: object,
+    path: str,
+    body_chunks: list[bytes],
+    headers: list[tuple[bytes, bytes]] | None = None,
+) -> tuple[int, dict[str, str], bytes]:
+    messages = [
+        {
+            "type": "http.request",
+            "body": chunk,
+            "more_body": index < len(body_chunks) - 1,
+        }
+        for index, chunk in enumerate(body_chunks)
+    ]
+    if not messages:
+        messages = [{"type": "http.request", "body": b"", "more_body": False}]
+    sent: list[dict[str, object]] = []
+
+    async def receive() -> dict[str, object]:
+        return messages.pop(0)
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": b"",
+        "headers": headers or [],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+        "root_path": "",
+    }
+    await app(scope, receive, send)  # type: ignore[misc]
+    start = next(message for message in sent if message["type"] == "http.response.start")
+    response_body = b"".join(
+        message.get("body", b"")
+        for message in sent
+        if message["type"] == "http.response.body"
+    )
+    response_headers = {
+        key.decode("latin-1"): value.decode("latin-1")
+        for key, value in start.get("headers", [])  # type: ignore[union-attr]
+    }
+    return int(start["status"]), response_headers, response_body  # type: ignore[index]
+
+
+def run_asgi(
+    app: object,
+    path: str,
+    body_chunks: list[bytes],
+    headers: list[tuple[bytes, bytes]] | None = None,
+) -> tuple[int, dict[str, str], bytes]:
+    return asyncio.run(call_asgi(app, path, body_chunks, headers))
+
+
+def padded_json(payload: object, size: int) -> bytes:
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+    if len(body) > size:
+        raise AssertionError("payload is already larger than the requested size")
+    return body + b" " * (size - len(body))
 
 
 class SecurityObservabilityTests(unittest.TestCase):
@@ -128,6 +210,51 @@ class SecurityObservabilityTests(unittest.TestCase):
                 ).status_code,
                 200,
             )
+            self.assertEqual(
+                client.post(
+                    "/agent/prepare",
+                    json={"query": "MCP"},
+                    headers={"Authorization": "Bearer agent-key-placeholder"},
+                ).status_code,
+                200,
+            )
+
+    def test_authentication_precedes_body_validation(self) -> None:
+        with patch.dict(os.environ, {"AGENT_API_KEY": "agent-key-placeholder"}, clear=False):
+            client = TestClient(create_app(text_generator=StubGenerator()))
+            requests = (
+                ("/agent/prepare", None),
+                ("/agent/prepare", {"content": b"{"}),
+                ("/agent/prepare", {"json": {"query": 123}}),
+                ("/agent/prepare", {"json": {"query": "MCP", "extra": True}}),
+                ("/v1/responses", None),
+                ("/v1/responses", {"content": b"{"}),
+                ("/v1/responses", {"json": {"unexpected": True}}),
+            )
+            for path, kwargs in requests:
+                with self.subTest(path=path, kwargs=kwargs):
+                    response = client.post(path, **(kwargs or {}))
+                    self.assertEqual(response.status_code, 401)
+                    self.assertIn(REQUEST_ID_HEADER, response.headers)
+                    self.assertEqual(
+                        response.headers.get("WWW-Authenticate"), "Bearer"
+                    )
+
+            invalid_agent = client.post(
+                "/agent/prepare",
+                json={"query": 123},
+                headers={"Authorization": "Bearer agent-key-placeholder"},
+            )
+            self.assertEqual(invalid_agent.status_code, 422)
+            invalid_open_response = client.post(
+                "/v1/responses",
+                content=b"{",
+                headers={
+                    "Authorization": "Bearer agent-key-placeholder",
+                    "Content-Type": "application/json",
+                },
+            )
+            self.assertEqual(invalid_open_response.status_code, 400)
 
     def test_request_id_is_server_generated_and_not_client_supplied(self) -> None:
         with patch.dict(os.environ, {"AGENT_API_KEY": ""}, clear=False):
@@ -181,8 +308,72 @@ class SecurityObservabilityTests(unittest.TestCase):
             "secret-query-not-for-logs",
             "Authorization",
             "Cookie",
+            "safe generated response",
         ):
             self.assertNotIn(forbidden, serialized)
+
+    def test_missing_provider_key_is_not_logged_as_an_outbound_attempt(self) -> None:
+        logger = logging.getLogger(LOGGER_NAME)
+        capture = LogCapture()
+        logger.addHandler(capture)
+        self.addCleanup(logger.removeHandler, capture)
+        generator = OpenAITextGenerator(client_factory=lambda *_: self.fail("client called"))
+        with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
+            response = TestClient(create_app(text_generator=generator)).post(
+                "/v1/responses", json={"input": "MCP"}
+            )
+        self.assertEqual(response.status_code, 503)
+        completed = [
+            json.loads(message)
+            for message in capture.messages
+            if json.loads(message)["event"] == "request_completed"
+        ][-1]
+        self.assertFalse(completed["provider_invoked"])
+        self.assertFalse(generator.provider_request_attempted)
+
+    def test_real_generator_call_is_logged_as_an_outbound_attempt(self) -> None:
+        logger = logging.getLogger(LOGGER_NAME)
+        capture = LogCapture()
+        logger.addHandler(capture)
+        self.addCleanup(logger.removeHandler, capture)
+        generator = TrackingGenerator()
+        response = TestClient(create_app(text_generator=generator)).post(
+            "/v1/responses", json={"input": "MCP"}
+        )
+        self.assertEqual(response.status_code, 200)
+        completed = [
+            json.loads(message)
+            for message in capture.messages
+            if json.loads(message)["event"] == "request_completed"
+        ][-1]
+        self.assertTrue(completed["provider_invoked"])
+        self.assertTrue(generator.provider_request_attempted)
+
+    def test_input_chars_include_full_transcript_text(self) -> None:
+        logger = logging.getLogger(LOGGER_NAME)
+        capture = LogCapture()
+        logger.addHandler(capture)
+        self.addCleanup(logger.removeHandler, capture)
+        generator = TrackingGenerator()
+        messages = [
+            {"type": "message", "role": "user", "content": "a" * 1000},
+            {"type": "message", "role": "assistant", "content": "b" * 1000},
+            {"type": "message", "role": "user", "content": "MCP"},
+        ]
+        response = TestClient(create_app(text_generator=generator)).post(
+            "/v1/responses", json={"input": messages}
+        )
+        self.assertEqual(response.status_code, 200)
+        completed = [
+            json.loads(message)
+            for message in capture.messages
+            if json.loads(message)["event"] == "request_completed"
+        ][-1]
+        self.assertEqual(completed["input_chars"], 2003)
+        serialized = "\n".join(capture.messages)
+        self.assertNotIn("a" * 1000, serialized)
+        self.assertNotIn("b" * 1000, serialized)
+        self.assertNotIn("tracked generated response", serialized)
 
     def test_provider_errors_and_unexpected_errors_are_sanitized(self) -> None:
         for generator, expected_status, expected_code in (
@@ -285,6 +476,61 @@ class SecurityObservabilityTests(unittest.TestCase):
         client = TestClient(create_app(text_generator=FailingGenerator()))
         self.assertEqual(client.get("/ready").status_code, 200)
         self.assertEqual(client.get("/ready").json(), {"status": "ready"})
+
+    def test_readiness_returns_503_when_agent_core_is_unusable(self) -> None:
+        app = create_app(text_generator=StubGenerator())
+        app.state.agent_core._profile_service = None
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "Service is not ready."})
+        self.assertIn(REQUEST_ID_HEADER, response.headers)
+        self.assertNotIn("profile", response.text.lower())
+
+    def test_readiness_does_not_require_openai_key(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
+            response = TestClient(create_app()).get("/ready")
+        self.assertEqual(response.status_code, 200)
+
+    def test_body_limit_is_exact_and_applies_without_content_length(self) -> None:
+        exact_body = padded_json({"input": "unknown topic"}, MAX_REQUEST_BODY_BYTES)
+        over_body = exact_body + b"x"
+        app = create_app(text_generator=StubGenerator())
+
+        exact_status, exact_headers, exact_response = run_asgi(
+            app, "/v1/responses", [exact_body]
+        )
+        self.assertEqual(len(exact_body), MAX_REQUEST_BODY_BYTES)
+        self.assertEqual(exact_status, 200)
+        self.assertRegex(exact_headers[REQUEST_ID_HEADER.lower()], r"^[0-9a-f]{32}$")
+        self.assertEqual(json.loads(exact_response)["object"], "response")
+        with patch.dict(os.environ, {"AGENT_API_KEY": ""}, clear=False):
+            client_response = TestClient(app).post(
+                "/v1/responses",
+                content=exact_body,
+                headers={"Content-Type": "application/json"},
+            )
+        self.assertEqual(client_response.status_code, 200)
+
+        over_status, _, over_response = run_asgi(
+            app, "/v1/responses", [over_body[:100], over_body[100:]]
+        )
+        self.assertEqual(over_status, 413)
+        self.assertEqual(json.loads(over_response)["error"]["code"], "request_too_large")
+
+        agent_status, _, agent_response = run_asgi(
+            app, "/agent/prepare", [over_body[:10], over_body[10:]]
+        )
+        self.assertEqual(agent_status, 413)
+        self.assertEqual(json.loads(agent_response)["detail"], "Request body is too large.")
+
+    def test_body_limit_counts_bytes_not_unicode_characters(self) -> None:
+        unicode_body = padded_json(
+            {"input": "á" * 100}, MAX_REQUEST_BODY_BYTES
+        )
+        status, _, response = run_asgi(app=create_app(text_generator=StubGenerator()), path="/v1/responses", body_chunks=[unicode_body])
+        self.assertEqual(len(unicode_body), MAX_REQUEST_BODY_BYTES)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response)["object"], "response")
 
 
 if __name__ == "__main__":

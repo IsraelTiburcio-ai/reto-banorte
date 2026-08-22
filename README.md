@@ -112,15 +112,24 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
 
 - `AGENT_API_KEY` habilita autenticación Bearer opcional para
   `/agent/prepare` y `/v1/responses`; no es la API key de OpenAI.
+- Cuando está configurada, la autenticación ocurre antes de que FastAPI lea o
+  valide el body; payloads inválidos sin credenciales reciben 401.
 - `GET /health` y `GET /ready` permanecen públicos para liveness/readiness y no
   llaman al proveedor.
+- `/ready` valida que el AgentCore, su política y el adaptador local estén
+  inicializados; devuelve 503 si el servicio no está listo.
 - Cada respuesta incluye un `X-Request-ID` nuevo generado por el servidor.
 - Los logs son JSON de una línea y solo contienen campos operativos seguros:
   ruta, estado, duración, categoría de error, estado del agente y modelo del
   proveedor. No registran payloads, respuestas, evidencia, headers, cookies ni
   secretos.
-- Se rechazan cuerpos mayores a 64 KiB, texto total mayor a 12,000 caracteres,
-  transcripts de más de 32 mensajes y mensajes de más de 32 partes.
+- El límite real del body es 64 KiB (65,536 bytes) en los dos POST protegidos,
+  incluso sin `Content-Length` o cuando llegan varios chunks. Además se
+  rechaza texto total mayor a 12,000 caracteres, transcripts de más de 32
+  mensajes y mensajes de más de 32 partes.
+- `provider_invoked` solo es `true` cuando el generador confirma un intento
+  outbound al proveedor; `input_chars` es el total de texto aceptado del
+  request/transcript y nunca contiene el texto.
 - Los errores inesperados se convierten en respuestas sanitizadas; los errores
   422 existentes de `/agent/prepare` se conservan.
 

@@ -57,19 +57,26 @@ class OpenAITextGenerator(TextGenerator):
         self._client_factory = client_factory or _default_client_factory
         self._client: Any | None = None
         self._client_key: str | None = None
+        self._provider_request_attempted = False
 
     @property
     def provider_model(self) -> str:
         configured = os.getenv(self._model_env, "").strip()
         return configured or self._default_model
 
+    @property
+    def provider_request_attempted(self) -> bool:
+        return self._provider_request_attempted
+
     def generate(self, request: TextGenerationRequest) -> str:
+        self._provider_request_attempted = False
         api_key = os.getenv(self._api_key_env, "").strip()
         if not api_key:
             raise MissingAPIKeyError()
 
         try:
             client = self._get_client(api_key)
+            self._provider_request_attempted = True
             response = client.responses.create(
                 model=self.provider_model,
                 instructions=build_system_instructions(request),

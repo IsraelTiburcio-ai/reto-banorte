@@ -106,14 +106,20 @@ class OpenResponsesAdapter:
         self._agent_core = agent_core
         self._text_generator = text_generator or OpenAITextGenerator()
 
+    @property
+    def agent_core(self) -> AgentCore:
+        """Expose the trusted core identity for local readiness checks."""
+
+        return self._agent_core
+
     def create_response(self, payload: object) -> tuple[dict[str, object], int]:
         try:
             request = self._validate_request(payload)
-            current_user_query, transcript = self._extract_generation_context(
+            current_user_query, transcript, input_chars = self._extract_generation_context(
                 request.input
             )
             turn = self._agent_core.prepare(current_user_query)
-            response_text = self._generate_text(turn, transcript)
+            response_text = self._generate_text(turn, transcript, input_chars)
         except OpenResponsesRequestError as exc:
             set_request_fields(error_category=exc.code)
             return self.error_response(
@@ -172,22 +178,24 @@ class OpenResponsesAdapter:
         self,
         turn: PreparedAgentTurn,
         transcript: tuple[ConversationMessage, ...],
+        input_chars: int,
     ) -> str:
-        provider_invoked = turn.status != "insufficient_evidence"
+        provider_invoked = False
         provider_model = self._provider_model()
         set_request_fields(
             agent_status=turn.status,
-            input_chars=len(turn.query),
+            input_chars=input_chars,
             provider_invoked=provider_invoked,
             provider_model=provider_model,
         )
         generation_started = time.perf_counter()
-        log_event(
-            "generation_started",
-            agent_status=turn.status,
-            provider_invoked=provider_invoked,
-            provider_model=provider_model,
-        )
+        generation_fields: dict[str, object] = {
+            "agent_status": turn.status,
+            "provider_model": provider_model,
+        }
+        if turn.status == "insufficient_evidence":
+            generation_fields["provider_invoked"] = False
+        log_event("generation_started", **generation_fields)
         if turn.status == "insufficient_evidence":
             text = INSUFFICIENT_EVIDENCE_TEXT
         else:
@@ -201,6 +209,8 @@ class OpenResponsesAdapter:
                     )
                 )
             except TextGenerationError as exc:
+                provider_invoked = self._provider_request_attempted()
+                set_request_fields(provider_invoked=provider_invoked)
                 log_event(
                     "generation_failed",
                     agent_status=turn.status,
@@ -208,11 +218,13 @@ class OpenResponsesAdapter:
                         (time.perf_counter() - generation_started) * 1000, 2
                     ),
                     error_category=exc.code,
-                    provider_invoked=True,
+                    provider_invoked=provider_invoked,
                     provider_model=provider_model,
                 )
                 raise
             except Exception:
+                provider_invoked = self._provider_request_attempted()
+                set_request_fields(provider_invoked=provider_invoked)
                 log_event(
                     "generation_failed",
                     agent_status=turn.status,
@@ -220,13 +232,19 @@ class OpenResponsesAdapter:
                         (time.perf_counter() - generation_started) * 1000, 2
                     ),
                     error_category="internal_error",
-                    provider_invoked=True,
+                    provider_invoked=provider_invoked,
                     provider_model=provider_model,
                 )
                 raise
 
         if not isinstance(text, str) or not text.strip():
             error = EmptyProviderResponseError()
+            provider_invoked = (
+                False
+                if turn.status == "insufficient_evidence"
+                else self._provider_request_attempted()
+            )
+            set_request_fields(provider_invoked=provider_invoked)
             log_event(
                 "generation_failed",
                 agent_status=turn.status,
@@ -238,6 +256,12 @@ class OpenResponsesAdapter:
                 provider_model=provider_model,
             )
             raise error
+        provider_invoked = (
+            False
+            if turn.status == "insufficient_evidence"
+            else self._provider_request_attempted()
+        )
+        set_request_fields(provider_invoked=provider_invoked)
         log_event(
             "generation_completed",
             agent_status=turn.status,
@@ -250,6 +274,17 @@ class OpenResponsesAdapter:
     def _provider_model(self) -> str | None:
         value = getattr(self._text_generator, "provider_model", None)
         return value if isinstance(value, str) and len(value) <= 128 else None
+
+    def _provider_request_attempted(self) -> bool:
+        """Read optional provider telemetry without coupling to provider secrets."""
+
+        try:
+            return (
+                getattr(self._text_generator, "provider_request_attempted", False)
+                is True
+            )
+        except Exception:
+            return False
 
     @staticmethod
     def error_response(
@@ -350,13 +385,13 @@ class OpenResponsesAdapter:
     def _extract_current_user_query(
         cls, input_value: str | list[dict[str, object]]
     ) -> str:
-        query, _ = cls._extract_generation_context(input_value)
+        query, _, _ = cls._extract_generation_context(input_value)
         return query
 
     @classmethod
     def _extract_generation_context(
         cls, input_value: str | list[dict[str, object]]
-    ) -> tuple[str, tuple[ConversationMessage, ...]]:
+    ) -> tuple[str, tuple[ConversationMessage, ...], int]:
         if isinstance(input_value, str):
             if not input_value.strip():
                 raise OpenResponsesRequestError(
@@ -371,7 +406,7 @@ class OpenResponsesAdapter:
                     code="input_too_large",
                     status_code=413,
                 )
-            return input_value, ()
+            return input_value, (), len(input_value)
 
         if not input_value:
             raise OpenResponsesRequestError(
@@ -398,7 +433,8 @@ class OpenResponsesAdapter:
                 param="input",
                 code="invalid_input",
             )
-        if sum(len(message.text) for message in transcript) > MAX_INPUT_TEXT_CHARS:
+        input_chars = sum(len(message.text) for message in transcript)
+        if input_chars > MAX_INPUT_TEXT_CHARS:
             raise OpenResponsesRequestError(
                 "Transcript text exceeds the maximum supported length.",
                 param="input",
@@ -409,7 +445,7 @@ class OpenResponsesAdapter:
         return user_messages[-1], tuple(
             ConversationMessage(role=message.role, text=message.text)
             for message in transcript
-        )
+        ), input_chars
 
     @classmethod
     def _parse_message(
