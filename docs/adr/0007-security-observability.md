@@ -106,6 +106,9 @@ counts bytes while reading chunks for both protected POST endpoints. It
 buffers at most the permitted body and replays a valid body to FastAPI, so
 `65,536` bytes is accepted and `65,537` bytes is rejected even without a
 `Content-Length` header. The byte limit is separate from the character limit.
+The limiter is deliberately not global: non-protected routes receive the
+original ASGI `receive` callable and are neither read nor reconstructed by this
+boundary.
 These checks reduce accidental abuse but are not a complete denial-of-service
 control: a production gateway should also enforce connection, timeout,
 concurrency, and streaming/chunk limits.
@@ -115,9 +118,12 @@ concurrency, and streaming/chunk limits.
 `GET /health` remains the liveness contract and returns `{"status":"ok"}`.
 `GET /ready` returns `{"status":"ready"}` only when the initialized
 AgentCore/profile retrieval boundary, policy, and Open Responses adapter are
-usable and consistent. It returns HTTP 503 with a sanitized message when an
-essential local component is unavailable. Neither endpoint calls OpenAI, reads
-a request body, or exposes profile content.
+usable and consistent, including a deterministic local preparation probe that
+exercises retrieval without generation. It returns HTTP 503 with
+`{"status":"not_ready"}` when an essential local component or probe is
+unavailable. This checks local serving readiness only; it does not verify
+OpenAI or any external provider. Neither endpoint calls OpenAI, reads a
+request body, or exposes profile content.
 
 ## Deliberately out of scope
 

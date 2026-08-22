@@ -116,8 +116,9 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
   valide el body; payloads inválidos sin credenciales reciben 401.
 - `GET /health` y `GET /ready` permanecen públicos para liveness/readiness y no
   llaman al proveedor.
-- `/ready` valida que el AgentCore, su política y el adaptador local estén
-  inicializados; devuelve 503 si el servicio no está listo.
+- `/ready` valida la policy, la estructura del adapter y ejecuta un probe local
+  de `AgentCore -> ProfileService`; devuelve `503 {"status":"not_ready"}` si
+  un componente esencial no es usable. No verifica ni llama a OpenAI.
 - Cada respuesta incluye un `X-Request-ID` nuevo generado por el servidor.
 - Los logs son JSON de una línea y solo contienen campos operativos seguros:
   ruta, estado, duración, categoría de error, estado del agente y modelo del
@@ -127,6 +128,8 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
   incluso sin `Content-Length` o cuando llegan varios chunks. Además se
   rechaza texto total mayor a 12,000 caracteres, transcripts de más de 32
   mensajes y mensajes de más de 32 partes.
+- El límite de 64 KiB no es global: las rutas públicas conservan el `receive`
+  ASGI original y no consumen ni reconstruyen su body mediante este middleware.
 - `provider_invoked` solo es `true` cuando el generador confirma un intento
   outbound al proveedor; `input_chars` es el total de texto aceptado del
   request/transcript y nunca contiene el texto.

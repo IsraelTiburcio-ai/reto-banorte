@@ -93,10 +93,12 @@ class SecurityObservabilityMiddleware:
                 )
                 return
 
-            replay_receive = await self._read_and_replay_body(receive)
+            replay_receive = (
+                await self._read_and_replay_body(receive) if protected else receive
+            )
             await self.app(
                 scope,
-                replay_receive if protected else receive,
+                replay_receive,
                 send_with_request_id,
             )
         except RequestBodyTooLarge:

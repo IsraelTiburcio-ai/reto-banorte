@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -9,9 +10,12 @@ import unittest
 from unittest.mock import patch
 
 import httpx
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, RateLimitError
 
+from app.agent.core import AgentCore
 from app.api.main import create_app
 from app.api.open_responses_schemas import OpenResponsesErrorEnvelope
 from app.core.limits import (
@@ -24,6 +28,8 @@ from app.core.observability import LOGGER_NAME, REQUEST_ID_HEADER
 from app.llm.errors import TextGenerationError
 from app.llm.openai_provider import OpenAITextGenerator
 from app.models.generation import TextGenerationRequest
+from app.models.agent import AgentPolicy
+from app.services.profile_service import ProfileService
 
 
 class StubGenerator:
@@ -65,6 +71,11 @@ class ErrorClient:
         self.responses = ErrorResponses(error)
 
 
+class FailingProfileService(ProfileService):
+    def search(self, query: str, visibility: str = "public") -> list[object]:
+        raise RuntimeError("private profile path detail")
+
+
 class LogCapture(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
@@ -91,6 +102,7 @@ async def call_asgi(
     path: str,
     body_chunks: list[bytes],
     headers: list[tuple[bytes, bytes]] | None = None,
+    method: str = "POST",
 ) -> tuple[int, dict[str, str], bytes]:
     messages = [
         {
@@ -114,7 +126,7 @@ async def call_asgi(
         "type": "http",
         "asgi": {"version": "3.0", "spec_version": "2.0"},
         "http_version": "1.1",
-        "method": "POST",
+        "method": method,
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("ascii"),
@@ -143,8 +155,9 @@ def run_asgi(
     path: str,
     body_chunks: list[bytes],
     headers: list[tuple[bytes, bytes]] | None = None,
+    method: str = "POST",
 ) -> tuple[int, dict[str, str], bytes]:
-    return asyncio.run(call_asgi(app, path, body_chunks, headers))
+    return asyncio.run(call_asgi(app, path, body_chunks, headers, method))
 
 
 def padded_json(payload: object, size: int) -> bytes:
@@ -482,9 +495,56 @@ class SecurityObservabilityTests(unittest.TestCase):
         app.state.agent_core._profile_service = None
         response = TestClient(app).get("/ready")
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {"detail": "Service is not ready."})
+        self.assertEqual(response.json(), {"status": "not_ready"})
         self.assertIn(REQUEST_ID_HEADER, response.headers)
         self.assertNotIn("profile", response.text.lower())
+
+    def test_readiness_probe_fails_when_profile_search_is_unusable(self) -> None:
+        app = create_app(
+            agent_core=AgentCore(profile_service=FailingProfileService()),
+            text_generator=StubGenerator(),
+        )
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"status": "not_ready"})
+        self.assertNotIn("private profile path detail", response.text)
+
+    def test_readiness_rejects_missing_or_invalid_policy(self) -> None:
+        for policy in (None, AgentPolicy(name="", objective="", rules=())):
+            with self.subTest(policy=policy):
+                app = create_app(text_generator=StubGenerator())
+                app.state.agent_core._policy = policy
+                response = TestClient(app).get("/ready")
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json(), {"status": "not_ready"})
+
+    def test_readiness_rejects_missing_or_unusable_adapter(self) -> None:
+        app = create_app(text_generator=StubGenerator())
+        app.state.open_responses_adapter = None
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 503)
+
+        app = create_app(text_generator=StubGenerator())
+        app.state.open_responses_adapter.create_response = None
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 503)
+
+    def test_readiness_rejects_core_adapter_mismatch(self) -> None:
+        app = create_app(text_generator=StubGenerator())
+        app.state.agent_core = AgentCore()
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 503)
+
+    def test_readiness_probe_does_not_mutate_local_components(self) -> None:
+        app = create_app(text_generator=StubGenerator())
+        core = app.state.agent_core
+        profile = core._profile_service
+        profile_before = copy.deepcopy(profile._profile)
+        policy_before = core.policy
+        response = TestClient(app).get("/ready")
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(core.policy, policy_before)
+        self.assertEqual(profile._profile, profile_before)
 
     def test_readiness_does_not_require_openai_key(self) -> None:
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
@@ -531,6 +591,29 @@ class SecurityObservabilityTests(unittest.TestCase):
         self.assertEqual(len(unicode_body), MAX_REQUEST_BODY_BYTES)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(response)["object"], "response")
+
+    def test_public_routes_keep_original_receive_and_skip_body_limit(self) -> None:
+        app = create_app(text_generator=StubGenerator())
+
+        async def public_echo(request: Request) -> JSONResponse:
+            body = await request.body()
+            return JSONResponse({"length": len(body)})
+
+        app.add_api_route("/public-echo", public_echo, methods=["POST"])
+        oversized_body = b"p" * (MAX_REQUEST_BODY_BYTES + 1)
+        with patch.dict(os.environ, {"AGENT_API_KEY": "agent-key-placeholder"}, clear=False):
+            status, _, response = run_asgi(app, "/public-echo", [oversized_body[:10], oversized_body[10:]])
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(response)["length"], len(oversized_body))
+
+            health_status, _, _ = run_asgi(
+                app, "/health", [oversized_body], method="GET"
+            )
+            ready_status, _, _ = run_asgi(
+                app, "/ready", [oversized_body], method="GET"
+            )
+        self.assertEqual(health_status, 200)
+        self.assertEqual(ready_status, 200)
 
 
 if __name__ == "__main__":

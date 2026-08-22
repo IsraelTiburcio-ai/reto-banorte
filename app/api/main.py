@@ -58,13 +58,17 @@ def create_app(
                 and core.is_ready
                 and isinstance(adapter, OpenResponsesAdapter)
                 and adapter.agent_core is core
+                and callable(adapter.create_response)
             )
+            if ready:
+                core.check_readiness()
         except Exception:
             ready = False
         if not ready:
+            set_request_fields(error_category="readiness_failed")
             return JSONResponse(
                 status_code=503,
-                content={"detail": "Service is not ready."},
+                content={"status": "not_ready"},
             )
         return ReadinessResponse()
 
