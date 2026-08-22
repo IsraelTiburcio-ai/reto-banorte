@@ -94,8 +94,12 @@ class EvalInfrastructureTests(unittest.TestCase):
             for outcome in report.outcomes
             if outcome.case_id == "conversation-followup"
         )
-        self.assertFalse(followup.passed)
-        self.assertIn("expected_status", followup.issue)
+        self.assertEqual(followup.case_status, NOT_EVALUATED)
+        self.assertEqual(followup.observed_status, "insufficient_evidence")
+        self.assertEqual(followup.issue, "")
+        self.assertEqual(followup.checks["expected_status"], PASS)
+        self.assertEqual(followup.checks["forbidden_evidence_ids_absent"], PASS)
+        self.assertIn("generated_answer", " ".join(followup.review_items))
 
     def test_live_mode_requires_explicit_confirmation_and_limit(self) -> None:
         args = build_parser().parse_args([])
@@ -155,7 +159,7 @@ class EvalInfrastructureTests(unittest.TestCase):
         self.assertEqual(outcome.checks["top_evidence_ids"], NOT_APPLICABLE)
         self.assertEqual(outcome.checks["required_facts_semantics"], NOT_APPLICABLE)
         self.assertEqual(
-            outcome.checks["forbidden_evidence_ids_absent"], FAIL
+            outcome.checks["forbidden_evidence_ids_absent"], PASS
         )
         self.assertEqual(
             outcome.checks["forbidden_claims_semantics"], NOT_EVALUATED
@@ -179,12 +183,12 @@ class EvalInfrastructureTests(unittest.TestCase):
         self.assertIn("NOT_EVALUATED:\n  - required_facts_semantics", rendered)
         self.assertIn("N/A:\n  - forbidden_evidence_ids_absent", rendered)
 
-    def test_cli_audits_fail_checks_for_known_followup(self) -> None:
+    def test_cli_audits_safe_followup_and_pending_semantics(self) -> None:
         case = next(case for case in self.cases if case.id == "conversation-followup")
         rendered = render_report(run_offline((case,)))
         self.assertIn("CASE: conversation-followup", rendered)
-        self.assertIn("STATUS: FAIL", rendered)
-        self.assertIn("FAIL:\n  - expected_status", rendered)
+        self.assertIn("STATUS: NOT_EVALUATED", rendered)
+        self.assertIn("PASS:\n  - expected_status", rendered)
         self.assertIn("  - forbidden_evidence_ids_absent", rendered)
         self.assertIn("NOT_EVALUATED:\n  - forbidden_claims_semantics", rendered)
         self.assertIn("N/A:\n  - required_evidence_ids", rendered)
