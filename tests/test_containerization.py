@@ -28,6 +28,8 @@ def parse_dockerfile_instructions(text: str) -> list[Instruction]:
         if not line:
             continue
         if line.startswith("#"):
+            if line.lower().startswith(("# syntax=", "# escape=", "# check=")):
+                raise AssertionError("Dockerfile parser directives are not approved")
             continue
 
         if line.endswith("\\"):
@@ -127,6 +129,69 @@ def _split_shell_and(command: str) -> list[str]:
 
 def _normalize_command(command: str) -> str:
     return " ".join(command.split())
+
+
+APPROVED_RUNTIME_COMMAND = (
+    'exec python -m uvicorn app.api.main:app --host 0.0.0.0 '
+    '--port "${PORT:-8080}"'
+)
+APPROVED_SETUP_COMMAND = (
+    "python -m pip install --no-cache-dir --target /app /tmp/build && "
+    "rm -rf /tmp/build && "
+    "groupadd --system app && "
+    "useradd --system --gid app --no-create-home --home-dir /nonexistent app && "
+    "mkdir -p /app/data && "
+    "chown -R app:app /app"
+)
+APPROVED_DOCKERFILE_INSTRUCTIONS = [
+    ("FROM", "python:3.11-slim-bookworm"),
+    ("ENV", "PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1"),
+    ("WORKDIR", "/app"),
+    ("COPY", "pyproject.toml /tmp/build/pyproject.toml"),
+    ("COPY", "app /tmp/build/app"),
+    ("RUN", APPROVED_SETUP_COMMAND),
+    ("COPY", "data/profile.json /app/data/profile.json"),
+    ("RUN", "chown app:app /app/data/profile.json"),
+    ("USER", "app:app"),
+    ("EXPOSE", "8080"),
+    ("CMD", json.dumps(["sh", "-c", APPROVED_RUNTIME_COMMAND])),
+]
+APPROVED_DOCKERIGNORE_RULES = [
+    ".git",
+    ".gitignore",
+    ".env",
+    ".env.*",
+    "!.env.example",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.pyc",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".coverage",
+    "htmlcov",
+    "dist",
+    "build",
+    "*.egg-info",
+    ".idea",
+    ".vscode",
+    "*.swp",
+    "*.swo",
+    "*~",
+    "tests",
+    "evals",
+    "docs",
+    "tmp",
+    "temp",
+]
+
+
+def _normalize_instructions(instructions: list[Instruction]) -> list[Instruction]:
+    return [
+        (_normalize_command(opcode), _normalize_command(argument))
+        for opcode, argument in instructions
+    ]
 
 
 def _replace_instruction_block(text: str, opcode: str, replacement: str) -> str:
@@ -320,23 +385,10 @@ def _validate_data_ignore_policy(lines: list[str]) -> None:
 def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) -> None:
     instructions = parse_dockerfile_instructions(dockerfile)
     opcodes = [opcode for opcode, _ in instructions]
-
-    expected_opcodes = [
-        "FROM",
-        "ENV",
-        "WORKDIR",
-        "COPY",
-        "COPY",
-        "RUN",
-        "COPY",
-        "RUN",
-        "USER",
-        "EXPOSE",
-        "CMD",
-    ]
+    _declared_names(instructions)
     _require(
-        opcodes == expected_opcodes,
-        "Dockerfile effective instruction sequence must match the repository contract",
+        _normalize_instructions(instructions) == APPROVED_DOCKERFILE_INSTRUCTIONS,
+        "Dockerfile must match the complete approved repository contract",
     )
     env_arguments = [
         _normalize_command(argument)
@@ -424,8 +476,6 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         "runtime instructions must preserve the repository's required order",
     )
 
-    _declared_names(instructions)
-
     commands = [argument for opcode, argument in instructions if opcode == "CMD"]
     _require(commands, "Dockerfile must define CMD")
     cmd_indices = [index for index, opcode in enumerate(opcodes) if opcode == "CMD"]
@@ -454,6 +504,15 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
 
     _validate_env_ignore_policy(dockerignore_lines)
     _validate_data_ignore_policy(dockerignore_lines)
+    effective_dockerignore_rules = [
+        raw_line.strip()
+        for raw_line in dockerignore_lines
+        if raw_line.strip() and not raw_line.strip().startswith("#")
+    ]
+    _require(
+        effective_dockerignore_rules == APPROVED_DOCKERIGNORE_RULES,
+        ".dockerignore must match the complete approved repository policy",
+    )
     for env_path in (".env", ".env.local", ".env.production", ".env.test"):
         _require(
             _dockerignore_ignores(env_path, dockerignore_lines),
@@ -665,11 +724,164 @@ class ContainerizationContractTests(unittest.TestCase):
             ),
             "extra runtime env": self.dockerfile.replace(
                 "PYTHONUNBUFFERED=1",
-                "PYTHONUNBUFFERED=1 \\\n+    PYTHONHOME=/nonexistent",
+                "PYTHONUNBUFFERED=1 \\\n    PYTHONHOME=/nonexistent",
                 1,
             ),
+            "different base image": self.dockerfile.replace(
+                "FROM python:3.11-slim-bookworm", "FROM alpine:3.20", 1
+            ),
+            "different base tag": self.dockerfile.replace(
+                "FROM python:3.11-slim-bookworm",
+                "FROM python:3.12-slim-bookworm",
+                1,
+            ),
+            "base digest": self.dockerfile.replace(
+                "FROM python:3.11-slim-bookworm",
+                "FROM python:3.11-slim-bookworm@sha256:deadbeef",
+                1,
+            ),
+            "extra initial base": "FROM python:3.11-slim-bookworm\n" + self.dockerfile,
+            "missing bytecode env": self.dockerfile.replace(
+                "ENV PYTHONDONTWRITEBYTECODE=1 \\\n    PYTHONUNBUFFERED=1",
+                "ENV PYTHONUNBUFFERED=1",
+                1,
+            ),
+            "changed bytecode env": self.dockerfile.replace(
+                "PYTHONDONTWRITEBYTECODE=1", "PYTHONDONTWRITEBYTECODE=0", 1
+            ),
+            "missing unbuffered env": self.dockerfile.replace(
+                "ENV PYTHONDONTWRITEBYTECODE=1 \\\n    PYTHONUNBUFFERED=1",
+                "ENV PYTHONDONTWRITEBYTECODE=1",
+                1,
+            ),
+            "additional safe env": self.dockerfile.replace(
+                "\nWORKDIR /app", "\nENV LANG=C.UTF-8\n\nWORKDIR /app", 1
+            ),
+            "additional arg": self.dockerfile.replace(
+                "\nWORKDIR /app", "\nARG BUILD_FLAG\n\nWORKDIR /app", 1
+            ),
+            "additional workdir": self.dockerfile.replace(
+                "\nUSER app:app", "\nWORKDIR /app\n\nUSER app:app", 1
+            ),
+            "workdir after approved contract": self.dockerfile + "\nWORKDIR /app\n",
+            "changed copy source": self.dockerfile.replace(
+                "COPY app /tmp/build/app", "COPY src /tmp/build/app", 1
+            ),
+            "changed copy destination": self.dockerfile.replace(
+                "COPY app /tmp/build/app", "COPY app /tmp/build/other", 1
+            ),
+            "missing pyproject copy": self.dockerfile.replace(
+                "COPY pyproject.toml /tmp/build/pyproject.toml",
+                "# COPY pyproject.toml /tmp/build/pyproject.toml",
+                1,
+            ),
+            "missing profile copy": self.dockerfile.replace(
+                "COPY data/profile.json /app/data/profile.json",
+                "# COPY data/profile.json /app/data/profile.json",
+                1,
+            ),
+            "copy source additional": self.dockerfile.replace(
+                "COPY pyproject.toml /tmp/build/pyproject.toml",
+                "COPY pyproject.toml missing.file /tmp/build/pyproject.toml",
+                1,
+            ),
+            "copy from unauthorized stage": self.dockerfile.replace(
+                "COPY pyproject.toml /tmp/build/pyproject.toml",
+                "COPY --from=missing-stage pyproject.toml /tmp/build/pyproject.toml",
+                1,
+            ),
+            "copy option": self.dockerfile.replace(
+                "COPY app /tmp/build/app",
+                "COPY --chown=app:app app /tmp/build/app",
+                1,
+            ),
+            "setup order altered": self.dockerfile.replace(
+                "RUN python -m pip install",
+                "RUN groupadd --system app && python -m pip install",
+                1,
+            ),
+            "setup extra command": self.dockerfile.replace(
+                "&& chown -R app:app /app",
+                "&& true && chown -R app:app /app",
+                1,
+            ),
+            "setup destructive command": self.dockerfile.replace(
+                "rm -rf /tmp/build", "rm -rf /app", 1
+            ),
+            "setup shell or operator": self.dockerfile.replace(
+                "&& rm -rf /tmp/build", "|| rm -rf /tmp/build", 1
+            ),
+            "profile chown owner": self.dockerfile.replace(
+                "RUN chown app:app /app/data/profile.json",
+                "RUN chown root:root /app/data/profile.json",
+                1,
+            ),
+            "profile chown path": self.dockerfile.replace(
+                "RUN chown app:app /app/data/profile.json",
+                "RUN chown app:app /app/data/other.json",
+                1,
+            ),
+            "profile chown extra command": self.dockerfile.replace(
+                "RUN chown app:app /app/data/profile.json",
+                "RUN chown app:app /app/data/profile.json && chmod 644 /app/data/profile.json",
+                1,
+            ),
+            "different user": self.dockerfile.replace("USER app:app", "USER nobody", 1),
+            "additional user": self.dockerfile.replace(
+                "\nUSER app:app", "\nUSER nobody\n\nUSER app:app", 1
+            ),
+            "wrong expose port": self.dockerfile.replace("EXPOSE 8080", "EXPOSE 9090", 1),
+            "multiple expose ports": self.dockerfile.replace(
+                "EXPOSE 8080", "EXPOSE 8080 9090", 1
+            ),
+            "expose protocol": self.dockerfile.replace("EXPOSE 8080", "EXPOSE 8080/tcp", 1),
+            "wrong cmd host": _replace_cmd(
+                self.dockerfile,
+                APPROVED_RUNTIME_COMMAND.replace("--host 0.0.0.0", "--host 127.0.0.1"),
+            ),
+            "wrong cmd default port": _replace_cmd(
+                self.dockerfile,
+                APPROVED_RUNTIME_COMMAND.replace("8080}", "9090}"),
+            ),
+            "cmd without exec": _replace_cmd(
+                self.dockerfile, APPROVED_RUNTIME_COMMAND.replace("exec python", "python")
+            ),
+            "wrong cmd executable": _replace_cmd(
+                self.dockerfile,
+                APPROVED_RUNTIME_COMMAND.replace("python -m uvicorn", "uvicorn"),
+            ),
+            "additional cmd": self.dockerfile + '\nCMD ["false"]\n',
+            "healthcheck instruction": self.dockerfile.replace(
+                "\nUSER app:app", '\nHEALTHCHECK CMD ["false"]\n\nUSER app:app', 1
+            ),
+            "volume instruction": self.dockerfile.replace(
+                "\nUSER app:app", "\nVOLUME /app/data\n\nUSER app:app", 1
+            ),
+            "onbuild instruction": self.dockerfile.replace(
+                "\nUSER app:app", "\nONBUILD RUN false\n\nUSER app:app", 1
+            ),
+            "slash data exclusion": self.dockerignore_lines + ["/data"],
+            "trailing slash data exclusion": self.dockerignore_lines + ["data/"],
+            "data wildcard exclusion": self.dockerignore_lines + ["data/**"],
+            "data wildcard profile exclusion": self.dockerignore_lines
+            + ["data/**/profile.json"],
+            "glob profile exclusion": self.dockerignore_lines + ["**/data/profile.json"],
+            "profile reinclusion": self.dockerignore_lines + ["!data/profile.json"],
+            "additional dockerignore rule": self.dockerignore_lines + ["unapproved"],
+            "missing env rule": [
+                rule for rule in self.dockerignore_lines if rule != ".env"
+            ],
+            "missing env wildcard rule": [
+                rule for rule in self.dockerignore_lines if rule != ".env.*"
+            ],
+            "production env reinclusion": self.dockerignore_lines + ["!.env.production"],
+            "local env reinclusion": self.dockerignore_lines + ["!.env.local"],
+            "test env reinclusion": self.dockerignore_lines + ["!.env.test"],
+            "syntax parser directive": "# syntax=docker/dockerfile:1\n" + self.dockerfile,
+            "escape parser directive": "# escape=" + chr(96) + "\n" + self.dockerfile,
+            "check parser directive": "# check=skip=JSONArgsRecommended\n" + self.dockerfile,
         }
-        self.assertEqual(len(mutations), 37)
+        self.assertEqual(len(mutations), 90)
         for name, mutation in mutations.items():
             with self.subTest(mutation=name):
                 if isinstance(mutation, list):
