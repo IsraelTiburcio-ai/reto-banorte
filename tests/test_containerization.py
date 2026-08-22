@@ -263,15 +263,20 @@ def _dockerignore_rule_matches(path: str, pattern: str) -> bool:
 
     path = path[2:] if path.startswith("./") else path
     path = path[1:] if path.startswith("/") else path
-    pattern = pattern.rstrip("/")
     pattern = pattern[2:] if pattern.startswith("./") else pattern
     pattern = pattern[1:] if pattern.startswith("/") else pattern
 
+    if pattern.startswith("**/"):
+        suffix = pattern[3:].rstrip("/")
+        components = path.split("/")
+        return any(
+            fnmatch.fnmatchcase("/".join(components[index:]), suffix)
+            for index in range(len(components))
+        )
+
+    pattern = pattern.rstrip("/")
     if pattern == path or fnmatch.fnmatchcase(path, pattern):
         return True
-    if pattern.startswith("**/"):
-        suffix = pattern[3:]
-        return path == suffix or path.endswith(f"/{suffix}")
     if "/" not in pattern:
         return any(fnmatch.fnmatchcase(component, pattern) for component in path.split("/"))
     return False
@@ -316,7 +321,23 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
     instructions = parse_dockerfile_instructions(dockerfile)
     opcodes = [opcode for opcode, _ in instructions]
 
-    _require(opcodes and opcodes[0] == "FROM", "Dockerfile must start with FROM")
+    expected_opcodes = [
+        "FROM",
+        "ENV",
+        "WORKDIR",
+        "COPY",
+        "COPY",
+        "RUN",
+        "COPY",
+        "RUN",
+        "USER",
+        "EXPOSE",
+        "CMD",
+    ]
+    _require(
+        opcodes == expected_opcodes,
+        "Dockerfile effective instruction sequence must match the repository contract",
+    )
     base_images = [argument for opcode, argument in instructions if opcode == "FROM"]
     _require(
         base_images == ["python:3.11-slim-bookworm"],
@@ -367,6 +388,9 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
 
     users = [argument.strip() for opcode, argument in instructions if opcode == "USER"]
     _require(users and users[-1] == "app:app", "final effective USER must be app:app")
+
+    exposes = [argument.strip() for opcode, argument in instructions if opcode == "EXPOSE"]
+    _require(exposes == ["8080"], "effective EXPOSE must be 8080")
 
     required_order = (
         copy_indices.get(("pyproject.toml", "/tmp/build/pyproject.toml"), []),
@@ -602,10 +626,33 @@ class ContainerizationContractTests(unittest.TestCase):
             "effective instruction after cmd": self.dockerfile
             + "\nRUN rm -rf /app/app\n",
             "specific env rule replaces wildcard": [
-                ".env" if rule != ".env.*" else ".env.local"
+                ".env.local" if rule == ".env.*" else rule
                 for rule in self.dockerignore_lines
             ],
+            "intermediate run false": self.dockerfile.replace(
+                "\nUSER app:app", "\nRUN false\n\nUSER app:app", 1
+            ),
+            "intermediate destructive run": self.dockerfile.replace(
+                "\nUSER app:app", "\nRUN rm -rf /app/app\n\nUSER app:app", 1
+            ),
+            "profile overwrite copy": self.dockerfile.replace(
+                "COPY data/profile.json /app/data/profile.json",
+                "COPY data/profile.json /app/data/profile.json\n"
+                "COPY pyproject.toml /app/data/profile.json",
+                1,
+            ),
+            "extra shell instruction": self.dockerfile.replace(
+                "\nUSER app:app", '\nSHELL ["/bin/false"]\n\nUSER app:app', 1
+            ),
+            "extra stop signal": self.dockerfile.replace(
+                "\nUSER app:app", "\nSTOPSIGNAL SIGKILL\n\nUSER app:app", 1
+            ),
+            "extra generic instruction": self.dockerfile.replace(
+                "\nUSER app:app", "\nLABEL phase=test\n\nUSER app:app", 1
+            ),
+            "broad nested data exclusion": self.dockerignore_lines + ["**/data/**"],
         }
+        self.assertEqual(len(mutations), 35)
         for name, mutation in mutations.items():
             with self.subTest(mutation=name):
                 if isinstance(mutation, list):
