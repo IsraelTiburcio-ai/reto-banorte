@@ -170,6 +170,14 @@ el runtime de la aplicación y `data/profile.json`, y ejecuta Uvicorn como un
 usuario no root. El contenedor escucha en `0.0.0.0`, respeta `PORT` y conserva
 los logs estructurados en stdout.
 
+### Validación estática
+
+Los tests de contrato parsean las instrucciones efectivas del Dockerfile y
+evalúan las reglas relevantes de `.dockerignore`, incluyendo continuaciones,
+orden de `USER`, semántica de `CMD`, declaraciones `ENV`/`ARG`, destinos
+`COPY` y negaciones last-match-wins. También contienen regresiones contra
+mutaciones conocidas del review. La suite normal no requiere Docker.
+
 Build local:
 
 ```bash
@@ -207,6 +215,32 @@ Endpoints para smoke tests:
 
 Phase 9 solo prepara la imagen. Cloud Run, GCP, Artifact Registry, Secret
 Manager, IAM, Compose, Kubernetes y deployment permanecen fuera de alcance.
+
+### Validación local del contenedor
+
+La siguiente validación se ejecutó localmente en macOS Apple Silicon `arm64`
+con Docker `29.7.2`; no es una validación de Cloud Run:
+
+- `docker build` pasó para `reto-banorte-cv-agent:phase9`.
+- Tamaño de imagen: `56,021,395` bytes (aproximadamente `56 MB`).
+- Usuario efectivo: `uid=999(app) gid=999(app) groups=999(app)`.
+- Con el puerto default `8080`, `/health` y `/ready` devolvieron `200`.
+- Con `PORT=9090`, `/health` devolvió `200`.
+- Con una `AGENT_API_KEY` fake: requests sin autorización y con Bearer
+  incorrecto devolvieron `401`; Bearer correcto permitió `/agent/prepare` con
+  retrieval público MCP válido.
+- `/v1/responses` autenticado con una pregunta sin evidencia pública devolvió
+  `200`, respuesta Open Responses válida y abstención segura sin requerir
+  `OPENAI_API_KEY` ni invocar al proveedor.
+- `docker stop -t 10` terminó limpiamente en aproximadamente `0.387 s`.
+- La ejecución `--read-only` mantuvo `/health` y `/ready` en `200`.
+- `/app/.env` estuvo ausente; `Config.Env` no incluyó `OPENAI_API_KEY` ni
+  `AGENT_API_KEY`; `docker history --no-trunc` no mostró credenciales de la
+  aplicación.
+
+La compatibilidad con Cloud Run continúa siendo una decisión de diseño
+preparatoria. El despliegue real y sus recursos pertenecen a Phase 10 y aún no
+se han iniciado.
 
 ## Ejecución local
 

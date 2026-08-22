@@ -70,16 +70,40 @@ llama al proveedor. No se agrega un `HEALTHCHECK` que obligue a instalar
 `curl`/`wget`; la plataforma podrá configurar probes posteriormente.
 
 La aplicación solo necesita leer código y `data/profile.json`; el usuario
-runtime no requiere permisos de escritura sobre ellos. La imagen se prepara
-para ejecutarse read-only cuando el entorno lo permita; `/tmp` puede montarse
-como tmpfs si una librería lo requiere.
+runtime no requiere permisos de escritura sobre ellos. La ejecución local con
+`--read-only` mantuvo `/health` y `/ready` en `200`; `/tmp` queda disponible
+para montarse como tmpfs si un entorno futuro lo requiere.
+
+## Validación local posterior
+
+La validación siguiente se ejecutó localmente en macOS Apple Silicon `arm64`
+con Docker `29.7.2`. Son smoke tests del contenedor local, no pruebas de Cloud
+Run:
+
+- `docker build` pasó para `reto-banorte-cv-agent:phase9`; tamaño:
+  `56,021,395` bytes (aproximadamente `56 MB`).
+- El usuario efectivo fue `uid=999(app) gid=999(app) groups=999(app)`.
+- Con `PORT=8080`, `/health` y `/ready` devolvieron `200`; con `PORT=9090`,
+  `/health` devolvió `200`.
+- Con una `AGENT_API_KEY` fake, ausencia de autorización y Bearer incorrecto
+  devolvieron `401`; Bearer correcto permitió `/agent/prepare` y retrieval MCP
+  público válido.
+- Una request autenticada a `/v1/responses` sin evidencia pública devolvió
+  `200` con respuesta Open Responses válida y abstención segura, sin requerir
+  `OPENAI_API_KEY` ni llamar al proveedor.
+- `docker stop -t 10` terminó limpiamente en aproximadamente `0.387 s`.
+- La ejecución `--read-only` conservó `/health` y `/ready` en `200`.
+- `/app/.env` estuvo ausente; `Config.Env` no incluyó `OPENAI_API_KEY` ni
+  `AGENT_API_KEY`; `docker history --no-trunc` no mostró credenciales de la
+  aplicación.
 
 ## Alcance y compatibilidad futura
 
 La imagen es stateless, escribe logs a stdout/stderr, respeta `PORT` y maneja
 señales mediante el proceso Uvicorn, por lo que es compatible conceptualmente
-con Cloud Run. No se agrega Docker Compose porque existe un solo servicio sin
-dependencias locales obligatorias. No se implementan Cloud Run, GCP, Artifact
+con Cloud Run; esa compatibilidad no equivale a un despliegue probado. No se
+agrega Docker Compose porque existe un solo servicio sin dependencias locales
+obligatorias. No se implementan Cloud Run, GCP, Artifact
 Registry, Cloud Build, Secret Manager, IAM, Terraform, Kubernetes, CI/CD ni
 balanceo; esos temas pertenecen a fases posteriores.
 
@@ -90,5 +114,5 @@ balanceo; esos temas pertenecen a fases posteriores.
 - No hay healthcheck Docker embebido; `/health` y `/ready` son los contratos
   disponibles para la plataforma.
 - El proceso usa un solo worker, sin optimización prematura de concurrencia.
-- Las pruebas de build, ejecución, autenticación, `PORT`, señales, filesystem y
-  ausencia de secretos son smoke tests locales separados de la suite Python.
+- Los tests Python estáticos y los smoke tests Docker locales son validaciones
+  separadas; ninguno reemplaza la validación y despliegue de Phase 10.
