@@ -183,6 +183,18 @@ class ProfileSearchTests(unittest.TestCase):
                 "name": "iOS Development Lab UNAM",
                 "description": "Academic project for estudiantes",
             },
+            {
+                "id": "academic-project",
+                "visibility": "public",
+                "name": "Proyecto académico",
+                "description": "Proyecto academico de investigación",
+            },
+            {
+                "id": "academic-experience",
+                "visibility": "public",
+                "name": "Experiencia académica",
+                "description": "Contexto de aprendizaje",
+            },
         ]
         with tempfile.TemporaryDirectory() as directory:
             profile_path = Path(directory) / "profile.json"
@@ -201,9 +213,13 @@ class ProfileSearchTests(unittest.TestCase):
             }
 
         self.assertIn("unam-lab", academic_ids)
+        self.assertIn("academic-project", academic_ids)
+        self.assertIn("academic-experience", academic_ids)
         self.assertNotIn("tsunami", academic_ids)
         self.assertIn("tsunami", professional_ids)
         self.assertNotIn("unam-lab", professional_ids)
+        self.assertNotIn("academic-project", professional_ids)
+        self.assertNotIn("academic-experience", professional_ids)
 
     def test_project_overview_queries_return_projects_only(self) -> None:
         queries = (

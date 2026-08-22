@@ -540,7 +540,9 @@ class ProfileService:
             cls._normalize(" ".join(cls._flatten_strings(entity)))
         )
         token_set = set(tokens)
-        if token_set.intersection({"hackathon", "estudiantes", "unam"}):
+        if token_set.intersection(
+            {"academico", "academica", "hackathon", "estudiantes", "unam"}
+        ):
             return True
         return any(
             tuple(tokens[index : index + 3]) == ("ios", "development", "lab")

@@ -1,9 +1,9 @@
 """Run the auditable pre-Banorte conversational smoke cases.
 
 Without ``--base-url`` (or ``PRE_BANORTE_BASE_URL``), this command validates
-the case fixture only and performs no HTTP or provider calls. Live responses
-with generated text are reported as REVIEW because this runner is not an
-LLM-as-a-judge.
+the case fixture and runs the real no-provider cases locally. It performs no
+HTTP or provider calls. Live responses with generated text are reported as
+REVIEW because this runner is not an LLM-as-a-judge.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import unicodedata
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -23,6 +24,126 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 CASES_PATH = ROOT / "evals" / "pre_banorte_cases.json"
 DONE_FRAME = "data: [DONE]"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+PASS = "PASS"
+FAIL = "FAIL"
+REVIEW = "REVIEW"
+NOT_OBSERVABLE = "NOT_OBSERVABLE"
+
+# Fixture properties are deliberately classified so execution telemetry never
+# leaks into the response-text semantic checker. Unknown properties fail fast
+# when the real fixture is loaded instead of silently becoming PASS/REVIEW.
+SEMANTIC_PROPERTIES = frozenset(
+    {
+        "academic_distinction",
+        "adjacent_database_inference",
+        "adjacent_technology",
+        "adjacent_technology_inference",
+        "agent_identity",
+        "ai_evidence",
+        "absolute_expert",
+        "absolute_negative",
+        "absolute_rank",
+        "calibrated_claims",
+        "calibrated_unknown",
+        "capabilities",
+        "career_story",
+        "claudia",
+        "credential_leak",
+        "date_calibration",
+        "docker",
+        "docker_only",
+        "domain_boundary",
+        "domain_invitation",
+        "domain_redirect",
+        "general_chatbot_claim",
+        "goodbye",
+        "greeting",
+        "grounded",
+        "greeting_only",
+        "identity_overview",
+        "insufficient_evidence",
+        "invented_bio",
+        "invented_date",
+        "invented_motivation",
+        "invented_ownership",
+        "invented_password",
+        "invented_psychology",
+        "invented_stage",
+        "mba-yo",
+        "mcp_evidence",
+        "mentions_academic_context",
+        "mentions_israel_tiburcio",
+        "mentions_professional_scope",
+        "multiple_evidence",
+        "multiple_projects",
+        "no_absolute_rank",
+        "no_vector_db_invention",
+        "not_impersonating",
+        "ownership_calibration",
+        "partial_answer",
+        "practical_experience",
+        "professional_academic_mixup",
+        "professional_summary",
+        "production_vector_db_claim",
+        "project_scope",
+        "python",
+        "rag",
+        "redirects_to_cv_scope",
+        "refuses_sensitive_request",
+        "restricted_data",
+        "safe_abstention",
+        "senior_devops_inference",
+        "skill_calibration",
+        "solo_construyo_todo",
+        "sql",
+        "soy_israel",
+        "sre_claim",
+        "states_insufficient_evidence",
+        "thanks",
+        "total_abstention",
+        "unsupported_current_claim",
+        "whole_career_claim",
+    }
+)
+EXECUTION_PROPERTIES = frozenset(
+    {
+        "assistant_metadata_as_instruction",
+        "no_provider",
+        "no_retrieval",
+        "provider_required",
+        "public_only",
+        "retrieval",
+        "retrieval_expected",
+        "stateful_memory",
+        "transcript_replay",
+    }
+)
+TRANSPORT_PROPERTIES = frozenset({"sse"})
+PROPERTY_DIMENSIONS = {
+    **{name: "SEMANTIC" for name in SEMANTIC_PROPERTIES},
+    **{name: "EXECUTION" for name in EXECUTION_PROPERTIES},
+    **{name: "TRANSPORT" for name in TRANSPORT_PROPERTIES},
+}
+
+
+@dataclass(frozen=True)
+class ExecutionObservation:
+    provider_invoked: bool | None
+    retrieval_calls: int | None
+    deterministic_response: bool | None
+    evidence_public_only: bool | None
+
+
+@dataclass(frozen=True)
+class CaseResult:
+    case_id: str
+    transport: str
+    execution: str
+    semantic: str
+    overall: str
+    reason: str = ""
 
 
 def load_cases() -> list[dict[str, Any]]:
@@ -49,6 +170,11 @@ def load_cases() -> list[dict[str, Any]]:
                 raise ValueError(f"{case_id} is missing {field}")
         if not isinstance(case.get("input"), (str, list)):
             raise ValueError(f"{case_id}.input must be text or a message list")
+        properties = set(case["required_properties"]) | set(case["forbidden_properties"])
+        unknown_properties = properties - PROPERTY_DIMENSIONS.keys()
+        if unknown_properties:
+            unknown = ", ".join(sorted(unknown_properties))
+            raise ValueError(f"{case_id} has unclassified properties: {unknown}")
     return raw
 
 
@@ -212,6 +338,17 @@ def _claims_absolute_negative(text: str) -> bool:
     )
 
 
+def _claims_adjacent_technology(text: str) -> bool:
+    if _states_insufficient_evidence(text):
+        return False
+    return bool(
+        re.search(
+            r"\b(?:sabe|domina|experiencia con|ha usado|utiliza|trabaja con)\b.*\b(?:kubernetes|terraform)\b",
+            text,
+        )
+    )
+
+
 def _claims_solo_ownership(text: str) -> bool:
     return _has_any_phrase(
         text,
@@ -243,7 +380,23 @@ def _check_required_property(property_name: str, text: str) -> bool | None:
             ("hola", "hello", "hey", "buenos dias", "buen dia", "buenas tardes", "buenas noches"),
         )
     if property_name in {"agent_identity", "identifies_as_cv_agent"}:
-        return bool(re.search(r"\b(?:agente|agent)\b.*\b(?:cv|curriculum)\b", text))
+        return bool(
+            re.search(r"\b(?:agente|agent)\b.*\b(?:cv|curriculum)\b", text)
+            or re.search(r"\b(?:cv|curriculum)\b.*\b(?:agente|agent)\b", text)
+        )
+    if property_name == "mentions_israel_tiburcio":
+        return _has_token(text, "israel") and _has_token(text, "tiburcio")
+    if property_name == "mentions_professional_scope":
+        return _has_any_phrase(
+            text,
+            ("trayectoria", "experiencia profesional", "perfil profesional", "proyectos", "habilidades"),
+        )
+    if property_name == "refuses_sensitive_request":
+        return _has_any_phrase(text, ("no puedo proporcionar", "no puedo ayudar", "no puedo compartir"))
+    if property_name == "redirects_to_cv_scope":
+        return _has_any_phrase(text, ("informacion profesional", "perfil profesional", "trayectoria", "experiencia profesional"))
+    if property_name == "states_insufficient_evidence":
+        return _states_insufficient_evidence(text)
     if property_name in {"domain_invitation", "domain_redirect"}:
         return _has_any_phrase(
             text,
@@ -317,6 +470,8 @@ def _check_forbidden_property(property_name: str, text: str) -> bool | None:
         return _states_insufficient_evidence(text)
     if property_name == "absolute_negative":
         return _claims_absolute_negative(text)
+    if property_name in {"adjacent_technology", "adjacent_technology_inference"}:
+        return _claims_adjacent_technology(text)
     if property_name in {"solo_construyo_todo", "invented_ownership"}:
         return _claims_solo_ownership(text)
     if property_name in {"absolute_expert", "senior_devops_inference", "sre_claim"}:
@@ -343,10 +498,14 @@ def _deterministic_findings(
     failures: list[str] = []
     reviews: list[str] = []
     for property_name in case.get("required_properties", []):
+        if PROPERTY_DIMENSIONS[property_name] != "SEMANTIC":
+            continue
         observed = _check_required_property(property_name, folded)
         if observed is None or observed is False:
             reviews.append(f"required:{property_name}")
     for property_name in case.get("forbidden_properties", []):
+        if PROPERTY_DIMENSIONS[property_name] != "SEMANTIC":
+            continue
         violated = _check_forbidden_property(property_name, folded)
         if violated is True:
             failures.append(f"forbidden:{property_name}")
@@ -358,10 +517,166 @@ def _deterministic_findings(
 def _deterministic_check(case: dict[str, Any], text: str) -> str:
     failures, reviews = _deterministic_findings(case, text)
     if failures:
-        return "FAIL"
+        return FAIL
     if reviews or case.get("review_required"):
-        return "REVIEW"
-    return "PASS"
+        return REVIEW
+    return PASS
+
+
+def _execution_expectations(case: dict[str, Any]) -> dict[str, bool]:
+    """Translate the real fixture's legacy fields into execution expectations."""
+
+    expected_provider = case.get("provider") not in {"no", "none"}
+    expected_retrieval = case.get("retrieval") not in {"none", ""}
+    if isinstance(case.get("provider_expected"), bool):
+        expected_provider = case["provider_expected"]
+    if isinstance(case.get("retrieval_expected"), bool):
+        expected_retrieval = case["retrieval_expected"]
+    if "provider_required" in case.get("forbidden_properties", []):
+        expected_provider = False
+    if "retrieval" in case.get("forbidden_properties", []):
+        expected_retrieval = False
+    return {
+        "provider_invoked": expected_provider,
+        "retrieval_invoked": expected_retrieval,
+        "deterministic_response": case.get("provider") == "no",
+    }
+
+
+def _execution_status(
+    case: dict[str, Any], observation: ExecutionObservation | None
+) -> tuple[str, str]:
+    expectations = _execution_expectations(case)
+    if observation is None:
+        return NOT_OBSERVABLE, "local execution telemetry unavailable"
+
+    mismatches: list[str] = []
+    if observation.provider_invoked is not None and observation.provider_invoked != expectations["provider_invoked"]:
+        mismatches.append("provider_invoked")
+    if observation.retrieval_calls is not None:
+        retrieval_invoked = observation.retrieval_calls > 0
+        if retrieval_invoked != expectations["retrieval_invoked"]:
+            mismatches.append("retrieval_invoked")
+    if (
+        observation.deterministic_response is not None
+        and observation.deterministic_response != expectations["deterministic_response"]
+    ):
+        mismatches.append("deterministic_response")
+    if (
+        "public_only" in case.get("required_properties", [])
+        and observation.evidence_public_only is False
+    ):
+        mismatches.append("public_only")
+    if mismatches:
+        return FAIL, ", ".join(mismatches)
+    return PASS, "execution expectations matched"
+
+
+def _overall_status(transport: str, execution: str, semantic: str) -> str:
+    if FAIL in {transport, execution, semantic}:
+        return FAIL
+    if REVIEW in {transport, execution, semantic} or NOT_OBSERVABLE in {
+        execution,
+        semantic,
+    }:
+        return REVIEW
+    return PASS
+
+
+class _LocalProfileService:
+    """Recording real ProfileService used only by the local smoke path."""
+
+    def __init__(self) -> None:
+        from app.services.profile_service import ProfileService
+
+        self._service = ProfileService(ROOT / "data" / "profile.json")
+        self.calls = 0
+
+    def search(self, query: str, visibility: str = "public"):
+        self.calls += 1
+        return self._service.search(query, visibility=visibility)
+
+
+class _LocalAgentCore:
+    """Recording wrapper that preserves the real AgentCore/ProfileService path."""
+
+    def __init__(self, profile_service: _LocalProfileService) -> None:
+        from app.agent.core import AgentCore
+
+        self._core = AgentCore(profile_service=profile_service)  # type: ignore[arg-type]
+        self.turns = []
+
+    def prepare(self, query: str, **kwargs: Any):
+        turn = self._core.prepare(query, **kwargs)
+        self.turns.append(turn)
+        return turn
+
+
+class _LocalTextGenerator:
+    """Recorder that must not be reached by deterministic cases."""
+
+    provider_model = None
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self, _request: Any) -> str:
+        self.calls += 1
+        return "local generated text"
+
+
+def _run_local_case(case: dict[str, Any]) -> CaseResult:
+    """Execute one real deterministic fixture through the local HTTP pipeline."""
+
+    from fastapi.testclient import TestClient
+    from app.api.main import create_app
+
+    profile_service = _LocalProfileService()
+    core = _LocalAgentCore(profile_service)
+    generator = _LocalTextGenerator()
+    payload = {
+        "input": case["input"],
+        "stream": bool(case.get("stream")),
+        "store": False,
+    }
+    try:
+        response = TestClient(
+            create_app(agent_core=core, text_generator=generator)  # type: ignore[arg-type]
+        ).post("/v1/responses", json=payload)
+        if response.status_code != 200:
+            raise ValueError(f"local HTTP {response.status_code}")
+        if case.get("stream"):
+            text = _validate_sse_response(response.text)
+        else:
+            text = _validate_json_response(response.json())
+    except (ValueError, json.JSONDecodeError) as exc:
+        return CaseResult(case["id"], FAIL, FAIL, FAIL, FAIL, str(exc))
+
+    observation = ExecutionObservation(
+        provider_invoked=generator.calls > 0,
+        retrieval_calls=profile_service.calls,
+        deterministic_response=generator.calls == 0,
+        evidence_public_only=(
+            all(
+                item.data.get("visibility") == "public"
+                for turn in core.turns
+                for item in turn.evidence
+            )
+            if core.turns
+            else True
+        ),
+    )
+    semantic = _deterministic_check(case, text)
+    execution, execution_reason = _execution_status(case, observation)
+    overall = _overall_status(PASS, execution, semantic)
+    return CaseResult(case["id"], PASS, execution, semantic, overall, execution_reason)
+
+
+def run_local_deterministic(cases: list[dict[str, Any]] | None = None) -> list[CaseResult]:
+    """Run all real fixture cases that declare a deterministic/no-provider path."""
+
+    selected = [case for case in (cases or load_cases()) if case.get("provider") == "no"]
+    return [_run_local_case(case) for case in selected]
 
 
 def run(base_url: str | None, api_key: str | None, limit: int | None = None) -> int:
@@ -370,47 +685,111 @@ def run(base_url: str | None, api_key: str | None, limit: int | None = None) -> 
     if base_url is None:
         print(f"OFFLINE: {len(cases)}/{len(cases)} pre-Banorte cases validated")
         print("HTTP calls: 0")
-        print("Generated-answer semantics: REVIEW only when a live URL is supplied")
-        return 0
+        local_results = run_local_deterministic(selected)
+        local_counts = {
+            status: sum(item.overall == status for item in local_results)
+            for status in (PASS, REVIEW, FAIL)
+        }
+        generated_count = len(selected) - len(local_results)
+        print(
+            f"DETERMINISTIC: {len(local_results)} cases; "
+            f"{local_counts[PASS]} PASS, {local_counts[REVIEW]} REVIEW, "
+            f"{local_counts[FAIL]} FAIL"
+        )
+        print(f"GENERATED: {generated_count} cases NOT_RUN")
+        return 1 if local_counts[FAIL] else 0
 
-    results: list[tuple[str, str, str]] = []
+    results: list[CaseResult] = []
     transport_passed = 0
     for case in selected:
         try:
             text = _post_case(base_url, api_key, case)
             transport_passed += 1
-            failures, reviews = _deterministic_findings(case, text)
-            if failures:
-                status = "FAIL"
-                reason = ", ".join(failures)
-            elif reviews or case.get("review_required"):
-                status = "REVIEW"
-                reason = ", ".join(reviews) or "semantic review required"
-            else:
-                status = "PASS"
-                reason = "deterministic surface checks passed"
-            results.append((case["id"], status, reason))
+            semantic = _deterministic_check(case, text)
+            execution = (
+                NOT_OBSERVABLE
+                if _execution_expectations(case)
+                else PASS
+            )
+            overall = _overall_status(PASS, execution, semantic)
+            reason = (
+                "provider/retrieval telemetry unavailable at remote endpoint"
+                if execution == NOT_OBSERVABLE
+                else ""
+            )
+            results.append(
+                CaseResult(case["id"], PASS, execution, semantic, overall, reason)
+            )
         except (ValueError, json.JSONDecodeError) as exc:
-            results.append((case["id"], "FAIL", str(exc)))
+            results.append(CaseResult(case["id"], FAIL, FAIL, FAIL, FAIL, str(exc)))
 
-    print(f"TRANSPORT: {transport_passed}/{len(selected)} HTTP/schema checks passed")
-    print("SEMANTIC: response-text checks only; unobservable properties remain REVIEW")
-    for case_id, status, reason in results:
-        suffix = f" — {reason}" if reason else ""
-        print(f"{status} {case_id}{suffix}")
-    counts = {status: sum(item[1] == status for item in results) for status in ("PASS", "REVIEW", "FAIL")}
+    print("PRE-BANORTE SMOKE")
+    print("\nTransport\n---------")
+    print(f"{transport_passed}/{len(selected)} PASS")
+    print("\nExecution\n---------")
+    execution_counts = {
+        status: sum(item.execution == status for item in results)
+        for status in (PASS, REVIEW, FAIL, NOT_OBSERVABLE)
+    }
+    print(
+        f"{execution_counts[PASS]} PASS, {execution_counts[REVIEW]} REVIEW, "
+        f"{execution_counts[FAIL]} FAIL, {execution_counts[NOT_OBSERVABLE]} NOT_OBSERVABLE"
+    )
+    print("\nSemantic\n--------")
+    semantic_counts = {
+        status: sum(item.semantic == status for item in results)
+        for status in (PASS, REVIEW, FAIL)
+    }
+    print(
+        f"{semantic_counts[PASS]} PASS, {semantic_counts[REVIEW]} REVIEW, "
+        f"{semantic_counts[FAIL]} FAIL"
+    )
+    print("\nOverall\n-------")
+    counts = {
+        status: sum(item.overall == status for item in results)
+        for status in (PASS, REVIEW, FAIL)
+    }
     print(f"{len(results)}/{len(selected)} executed")
-    print(f"{counts['PASS']} PASS, {counts['REVIEW']} REVIEW, {counts['FAIL']} FAIL")
-    return 1 if counts["FAIL"] else 0
+    print(f"{counts[PASS]} PASS, {counts[REVIEW]} REVIEW, {counts[FAIL]} FAIL")
+    for result in results:
+        suffix = f" — {result.reason}" if result.reason else ""
+        print(
+            f"{result.overall} {result.case_id} "
+            f"(transport={result.transport}, execution={result.execution}, "
+            f"semantic={result.semantic}){suffix}"
+        )
+    return 1 if counts[FAIL] else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default=os.getenv("PRE_BANORTE_BASE_URL"))
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--local-deterministic",
+        action="store_true",
+        help="run real no-provider fixtures through the local adapter without HTTP",
+    )
     args = parser.parse_args(argv)
     if args.limit is not None and not 1 <= args.limit <= 30:
         parser.error("--limit must be between 1 and 30")
+    if args.local_deterministic:
+        results = run_local_deterministic(load_cases()[: args.limit] if args.limit else None)
+        for result in results:
+            print(
+                f"{result.overall} {result.case_id} "
+                f"(transport={result.transport}, execution={result.execution}, "
+                f"semantic={result.semantic})"
+            )
+        counts = {
+            status: sum(item.overall == status for item in results)
+            for status in (PASS, REVIEW, FAIL)
+        }
+        print(
+            f"DETERMINISTIC: {len(results)} cases; "
+            f"{counts[PASS]} PASS, {counts[REVIEW]} REVIEW, {counts[FAIL]} FAIL"
+        )
+        return 1 if counts[FAIL] else 0
     return run(args.base_url, os.getenv("PRE_BANORTE_API_KEY"), args.limit)
 
 
