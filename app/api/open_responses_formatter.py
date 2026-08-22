@@ -85,6 +85,62 @@ _META_RESPONSES = {
     "puedes responder preguntas sobre su cv": AGENT_CAPABILITIES_RESPONSE_TEXT,
 }
 
+_CAPABILITIES_FRAMING_TERMS = frozenset(
+    {
+        "a",
+        "about",
+        "acerca",
+        "al",
+        "and",
+        "ask",
+        "como",
+        "con",
+        "cosas",
+        "deberia",
+        "cuál",
+        "cuales",
+        "cual",
+        "dame",
+        "de",
+        "del",
+        "el",
+        "en",
+        "for",
+        "hacer",
+        "hacerte",
+        "ideas",
+        "israel",
+        "la",
+        "las",
+        "los",
+        "me",
+        "of",
+        "on",
+        "para",
+        "pregunta",
+        "preguntas",
+        "preguntar",
+        "preguntarte",
+        "puede",
+        "puedes",
+        "puedo",
+        "podria",
+        "que",
+        "qué",
+        "sugiere",
+        "sugieres",
+        "sugiero",
+        "sobre",
+        "su",
+        "sus",
+        "te",
+        "the",
+        "tiburcio",
+        "what",
+        "you",
+    }
+)
+
 _SENSITIVE_MARKERS = (
     "contrasena",
     "password",
@@ -120,6 +176,32 @@ def is_pure_cv_greeting(value: str) -> bool:
     return _normalize_intent(value) in _PURE_GREETINGS
 
 
+def _is_capabilities_question(normalized: str) -> bool:
+    """Recognize generic questions about what this agent can answer."""
+
+    tokens = set(normalized.split())
+    question_terms = tokens.intersection({"pregunta", "preguntas", "ask"}) or {
+        token for token in tokens if token.startswith("pregunt")
+    }
+    ask_verbs = tokens.intersection(
+        {
+            "sugieres",
+            "sugiero",
+            "deberia",
+            "puedo",
+            "puedes",
+            "ask",
+            "hacer",
+        }
+    ) or question_terms
+    if not ask_verbs:
+        return False
+    if not (question_terms or tokens.intersection({"cosas", "ideas", "sobre"})):
+        return False
+    substantive_terms = tokens - _CAPABILITIES_FRAMING_TERMS
+    return not substantive_terms
+
+
 def deterministic_response_for(value: str) -> tuple[str, str] | None:
     """Return a safe local response and agent status for non-professional turns."""
 
@@ -138,6 +220,8 @@ def deterministic_response_for(value: str) -> tuple[str, str] | None:
     meta_response = _META_RESPONSES.get(normalized)
     if meta_response is not None:
         return meta_response, "ready"
+    if _is_capabilities_question(normalized):
+        return AGENT_CAPABILITIES_RESPONSE_TEXT, "ready"
     if any(marker in normalized for marker in _SENSITIVE_MARKERS):
         return SENSITIVE_REQUEST_RESPONSE_TEXT, "insufficient_evidence"
     if normalized in _OUT_OF_SCOPE_EXACT:

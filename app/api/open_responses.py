@@ -29,7 +29,10 @@ from app.llm.errors import EmptyProviderResponseError, TextGenerationError
 from app.llm.openai_provider import OpenAITextGenerator
 from app.core.limits import (
     MAX_CONTENT_PARTS,
+    MAX_GENERATION_HISTORY_CHARS,
+    MAX_GENERATION_HISTORY_MESSAGES,
     MAX_INPUT_TEXT_CHARS,
+    MAX_MESSAGE_TEXT_CHARS,
     MAX_TRANSCRIPT_MESSAGES,
 )
 from app.core.observability import log_event, set_request_fields
@@ -252,7 +255,7 @@ class OpenResponsesAdapter:
         current_user_query: str,
         transcript: tuple[ConversationMessage, ...],
     ) -> PreparedAgentTurn:
-        """Use prior user text only as bounded retrieval context for follow-ups."""
+        """Use bounded prior user text only as retrieval context for follow-ups."""
 
         turn = self._agent_core.prepare(current_user_query)
         if not self._is_context_dependent_followup(current_user_query):
@@ -260,7 +263,7 @@ class OpenResponsesAdapter:
 
         prior_user_text = [
             message.text
-            for message in transcript[:-1]
+            for message in transcript
             if message.role == "user"
         ][-2:]
         if not prior_user_text:
@@ -721,18 +724,44 @@ class OpenResponsesAdapter:
                 code="invalid_input",
             )
         input_chars = sum(len(message.text) for message in transcript)
-        if input_chars > MAX_INPUT_TEXT_CHARS:
-            raise OpenResponsesRequestError(
-                "Transcript text exceeds the maximum supported length.",
-                param="input",
-                code="input_too_large",
-                status_code=413,
-            )
-        # Assistant history is validated structural data, never AgentCore input.
-        return user_messages[-1], tuple(
-            ConversationMessage(role=message.role, text=message.text)
-            for message in transcript
-        ), input_chars
+        # The full validated transcript may exceed the old aggregate text
+        # budget as long as the HTTP body and per-message limits still hold.
+        # Keep only a bounded suffix for generation and contextual retrieval;
+        # the current user question is carried separately and is never trimmed.
+        current_user_query = user_messages[-1]
+        prior_messages = transcript[:]
+        for index in range(len(prior_messages) - 1, -1, -1):
+            if prior_messages[index].role == "user" and prior_messages[index].text == current_user_query:
+                prior_messages = prior_messages[:index]
+                break
+        return (
+            current_user_query,
+            cls._bound_history(
+                tuple(
+                    ConversationMessage(role=message.role, text=message.text)
+                    for message in prior_messages
+                )
+            ),
+            input_chars,
+        )
+
+    @staticmethod
+    def _bound_history(
+        transcript: tuple[ConversationMessage, ...],
+    ) -> tuple[ConversationMessage, ...]:
+        """Keep recent complete history within message and character budgets."""
+
+        selected: list[ConversationMessage] = []
+        used_chars = 0
+        for message in reversed(transcript):
+            if len(selected) >= MAX_GENERATION_HISTORY_MESSAGES:
+                break
+            if used_chars + len(message.text) > MAX_GENERATION_HISTORY_CHARS:
+                continue
+            selected.append(message)
+            used_chars += len(message.text)
+        selected.reverse()
+        return tuple(selected)
 
     @classmethod
     def _parse_message(
@@ -878,6 +907,13 @@ class OpenResponsesAdapter:
                         param=f"{part_param}.text",
                         code="invalid_input",
                     )
+                if len(part_text) > MAX_MESSAGE_TEXT_CHARS:
+                    raise OpenResponsesRequestError(
+                        "Message text exceeds the maximum supported length.",
+                        param=part_param,
+                        code="input_too_large",
+                        status_code=413,
+                    )
                 parts.append(part_text)
             text = " ".join(parts)
         else:
@@ -892,5 +928,12 @@ class OpenResponsesAdapter:
                 "Message content must not be empty or whitespace-only.",
                 param=f"{item_param}.content",
                 code="invalid_input",
+            )
+        if len(text) > MAX_MESSAGE_TEXT_CHARS:
+            raise OpenResponsesRequestError(
+                "Message text exceeds the maximum supported length.",
+                param=f"{item_param}.content",
+                code="input_too_large",
+                status_code=413,
             )
         return text

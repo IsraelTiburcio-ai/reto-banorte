@@ -97,17 +97,23 @@ The application applies conservative limits:
 | Boundary | Limit |
 | --- | ---: |
 | request body | 64 KiB |
-| total text input | 12,000 characters |
+| single text or message | 12,000 characters |
 | transcript messages | 32 |
 | content parts in one message | 32 |
+| generation history window | 8 messages / 8,000 characters |
 
 The ASGI boundary checks the declared length as an early optimization and also
 counts bytes while reading chunks for both protected POST endpoints. It
 buffers at most the permitted body and replays a valid body to FastAPI, so
 `65,536` bytes is accepted and `65,537` bytes is rejected even without a
-`Content-Length` header. The byte limit is separate from the character limit.
-The limiter is deliberately not global: non-protected routes receive the
-original ASGI `receive` callable and are neither read nor reconstructed by this
+`Content-Length` header. The byte limit is separate from the per-text character
+limit. A transcript's aggregate text is not rejected solely because it exceeds
+12,000 characters; the body limit, message limit, and part-count limit still
+apply. After structural validation, the adapter keeps only the most recent
+complete history fitting the 8-message/8,000-character generation window. The
+current user question is validated separately and is never truncated. The
+limiter is deliberately not global: non-protected routes receive the original
+ASGI `receive` callable and are neither read nor reconstructed by this
 boundary.
 These checks reduce accidental abuse but are not a complete denial-of-service
 control: a production gateway should also enforce connection, timeout,

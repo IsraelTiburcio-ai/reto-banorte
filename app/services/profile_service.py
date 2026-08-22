@@ -136,6 +136,37 @@ class ProfileService:
         "perfil",
         "dame",
     }
+    _EDUCATION_OVERVIEW_TERMS = {
+        "academica",
+        "academico",
+        "carrera",
+        "colegio",
+        "donde",
+        "educacion",
+        "escuela",
+        "escolar",
+        "estudio",
+        "estudios",
+        "formacion",
+        "institucion",
+        "licenciatura",
+        "preparatoria",
+        "school",
+        "studies",
+        "trayectoria",
+        "universidad",
+    }
+    _CLOUD_GENERIC_TERMS = {"cloud", "computing", "nube"}
+    _CLOUD_PROVIDER_ALIASES = {
+        "aws": {"aws"},
+        "gcp": {"gcp"},
+        "oracle": {"oracle"},
+    }
+    _CLOUD_PROVIDER_MARKERS = {
+        "aws": {"aws", "amazon"},
+        "gcp": {"gcp", "google"},
+        "oracle": {"oracle"},
+    }
     _OVERVIEW_NAME_TERMS = {"israel", "tiburcio"}
     _REQUIRED_SECTIONS: tuple[str, ...] = (
         "metadata",
@@ -190,6 +221,7 @@ class ProfileService:
         "can",
         "con",
         "como",
+        "cosas",
         "cual",
         "cuales",
         "cuentame",
@@ -201,6 +233,7 @@ class ProfileService:
         "contar",
         "dame",
         "dime",
+        "deberia",
         "el",
         "en",
         "es",
@@ -217,6 +250,8 @@ class ProfileService:
         "experience",
         "experiencia",
         "for",
+        "hacer",
+        "hacerte",
         "fue",
         "fueron",
         "gano",
@@ -232,10 +267,12 @@ class ProfileService:
         "lo",
         "los",
         "me",
+        "ideas",
         "of",
         "para",
         "por",
         "please",
+        "podria",
         "puede",
         "puedes",
         "qué",
@@ -249,11 +286,18 @@ class ProfileService:
         "sido",
         "son",
         "sobre",
+        "sugiere",
+        "sugieres",
+        "sugiero",
         "su",
         "sus",
+        "te",
         "tell",
         "tengo",
         "tiene",
+        "pregunta",
+        "preguntas",
+        "preguntarte",
         "the",
         "this",
         "cuando",
@@ -317,6 +361,7 @@ class ProfileService:
         broad_intent = self._detect_broad_intent(normalized_query, query_terms)
         if broad_intent is not None:
             return self._search_broad_intent(broad_intent, visibility)
+        cloud_provider = self._detect_cloud_provider(query_terms)
 
         relationship_terms = self._build_relationship_terms(visibility)
         results: list[SearchResult] = []
@@ -346,6 +391,14 @@ class ProfileService:
 
         results.sort(key=lambda item: (-item.score, item.entity_type, item.entity_id))
         if results:
+            if cloud_provider is not None:
+                scoped_results = [
+                    result
+                    for result in results
+                    if self._matches_cloud_provider(result.data, cloud_provider)
+                ]
+                if scoped_results:
+                    return scoped_results
             return results
 
         if not query_terms:
@@ -390,7 +443,67 @@ class ProfileService:
         token_results.sort(
             key=lambda item: (-item.score, item.entity_type, item.entity_id)
         )
+        if cloud_provider is not None:
+            scoped_token_results = [
+                result
+                for result in token_results
+                if self._matches_cloud_provider(result.data, cloud_provider)
+            ]
+            if scoped_token_results:
+                return scoped_token_results
+            return self._search_cloud_provider(cloud_provider, visibility)
         return token_results
+
+    @classmethod
+    def _detect_cloud_provider(cls, query_terms: list[str]) -> str | None:
+        terms = set(query_terms)
+        for provider, markers in cls._CLOUD_PROVIDER_MARKERS.items():
+            if terms.intersection(markers):
+                return provider
+        return None
+
+    @classmethod
+    def _matches_cloud_provider(
+        cls, entity: ProfileMapping, provider: str
+    ) -> bool:
+        contexts = {
+            cls._normalize(value)
+            for value in cls._flatten_strings(entity.get("contexts"))
+        }
+        if "cloud computing" not in contexts:
+            return False
+        name = cls._normalize(
+            " ".join(cls._values_for_keys(entity, {"name", "title"}))
+        )
+        return bool(
+            set(cls._tokenize(name)).intersection(
+                cls._CLOUD_PROVIDER_ALIASES[provider]
+            )
+        )
+
+    def _search_cloud_provider(
+        self, provider: str, visibility: VisibilityPolicy
+    ) -> list[SearchResult]:
+        results: list[SearchResult] = []
+        for entity_type, entity_id, entity in self._iter_search_entities():
+            if entity_type != "skill":
+                continue
+            visible_entity = self._visible_entity(entity, visibility)
+            if visible_entity is None or not self._matches_cloud_provider(
+                visible_entity, provider
+            ):
+                continue
+            results.append(
+                SearchResult(
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    title=self._title_for(visible_entity, entity_id),
+                    score=100.0,
+                    matched_fields=("name/title",),
+                    data=visible_entity,
+                )
+            )
+        return results
 
     @classmethod
     def _detect_broad_intent(
@@ -462,6 +575,45 @@ class ProfileService:
         ):
             return "identity_overview"
 
+        education_markers = raw_terms.intersection(
+            cls._EDUCATION_OVERVIEW_TERMS
+            | {"academica", "academico", "academic", "school", "studies"}
+        )
+        if education_markers and (
+            "trayectoria" in raw_terms
+            or raw_terms.intersection(
+                {
+                    "escolar",
+                    "formacion",
+                    "estudio",
+                    "estudios",
+                    "educacion",
+                    "universidad",
+                    "escuela",
+                    "preparatoria",
+                    "licenciatura",
+                    "school",
+                    "studies",
+                }
+            )
+        ) and raw_terms <= (
+            cls._EDUCATION_OVERVIEW_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"academic", "school", "studies", "what", "which", "has"}
+        ):
+            return "education_overview"
+
+        if (
+            raw_terms.intersection(cls._CLOUD_GENERIC_TERMS)
+            and raw_terms
+            <= cls._CLOUD_GENERIC_TERMS
+            | cls._QUERY_STOPWORDS
+            | cls._OVERVIEW_NAME_TERMS
+            | {"sabe", "saber", "conoce", "conocimiento", "nivel", "what"}
+        ):
+            return "cloud_overview"
+
         # A one-token meaningful query such as ``proyectos`` should still be
         # useful, while an arbitrary noise-only query remains empty.
         if terms == {"proyectos"} or terms == {"proyecto"}:
@@ -478,6 +630,14 @@ class ProfileService:
             for entity_type, entity_id, entity in self._iter_search_entities()
             if (visible_entity := self._visible_entity(entity, visibility)) is not None
         }
+        if intent == "education_overview":
+            visible_entities.update(
+                {
+                    (entity_type, entity_id): visible_entity
+                    for entity_type, entity_id, entity in self._iter_education_entities()
+                    if (visible_entity := self._visible_entity(entity, visibility)) is not None
+                }
+            )
 
         if intent == "project_overview":
             ordered_keys = [
@@ -518,6 +678,20 @@ class ProfileService:
             ]
             ordered_keys = [
                 key for key in preferred_types if key in visible_entities
+            ]
+        elif intent == "education_overview":
+            ordered_keys = [
+                key for key in visible_entities if key[0] == "education"
+            ]
+        elif intent == "cloud_overview":
+            ordered_keys = [
+                key
+                for key, entity in visible_entities.items()
+                if key[0] == "skill"
+                and "cloud computing" in {
+                    self._normalize(value)
+                    for value in self._flatten_strings(entity.get("contexts"))
+                }
             ]
         else:
             return []
@@ -758,6 +932,20 @@ class ProfileService:
             value = self._profile.get(key)
             if isinstance(value, dict):
                 yield "document", key, cast(ProfileMapping, value)
+
+    def _iter_education_entities(
+        self,
+    ) -> Iterator[tuple[str, str, ProfileMapping]]:
+        education = self._profile.get("education")
+        if isinstance(education, dict):
+            formal = education.get("formal")
+            if isinstance(formal, list):
+                for item in formal:
+                    if isinstance(item, dict) and isinstance(item.get("id"), str):
+                        yield "education", cast(str, item["id"]), cast(ProfileMapping, item)
+            academic_origin = education.get("academic_origin")
+            if isinstance(academic_origin, dict):
+                yield "education", "academic_origin", cast(ProfileMapping, academic_origin)
 
     def _build_relationship_terms(
         self, visibility: VisibilityPolicy
@@ -1007,7 +1195,14 @@ class ProfileService:
 
     @staticmethod
     def _title_for(entity: ProfileMapping, entity_id: str) -> str:
-        for key in ("name", "title", "organization", "program", "full_name"):
+        for key in (
+            "name",
+            "title",
+            "organization",
+            "institution",
+            "program",
+            "full_name",
+        ):
             value = entity.get(key)
             if isinstance(value, str) and value.strip():
                 return value
