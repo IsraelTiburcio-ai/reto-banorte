@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import unicodedata
 from collections.abc import Iterator
 from json import JSONDecodeError
@@ -102,6 +103,48 @@ class ProfileService:
         "tools_used",
         "workflow",
     }
+    _QUERY_STOPWORDS = {
+        "a",
+        "about",
+        "al",
+        "and",
+        "con",
+        "cual",
+        "cuales",
+        "cuál",
+        "cuáles",
+        "de",
+        "del",
+        "dime",
+        "el",
+        "en",
+        "es",
+        "experience",
+        "experiencia",
+        "for",
+        "has",
+        "have",
+        "how",
+        "israel",
+        "la",
+        "las",
+        "los",
+        "me",
+        "of",
+        "por",
+        "please",
+        "qué",
+        "que",
+        "sobre",
+        "tell",
+        "tengo",
+        "tiene",
+        "the",
+        "this",
+        "what",
+        "with",
+        "y",
+    }
 
     def __init__(self, profile_path: str | Path | None = None) -> None:
         self.profile_path = (
@@ -179,7 +222,53 @@ class ProfileService:
             )
 
         results.sort(key=lambda item: (-item.score, item.entity_type, item.entity_id))
-        return results
+        if results:
+            return results
+
+        query_terms = self._meaningful_query_terms(query)
+        if not query_terms:
+            return []
+
+        # Natural-language fallback: exact and substring matching above remain
+        # authoritative for existing queries; token matching only helps when a
+        # full question is not itself present in a profile field. Compact
+        # hyphenated identifiers retain their original lookup semantics.
+        if "-" in normalized_query and " " not in normalized_query:
+            return []
+
+        token_results: list[SearchResult] = []
+        for entity_type, entity_id, entity in self._iter_search_entities():
+            visible_entity = self._visible_entity(entity, visibility)
+            if visible_entity is None:
+                continue
+            score, matched_fields = self._score_entity_tokens(
+                entity_type,
+                entity_id,
+                visible_entity,
+                query_terms,
+                relationship_terms,
+            )
+            # Conservative fallback: token hits in descriptive body fields
+            # alone are too weak to turn arbitrary question words into
+            # results. Existing exact/substring matching above still keeps
+            # its full scoring behavior for those fields.
+            if score < 55.0:
+                continue
+            token_results.append(
+                SearchResult(
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    title=self._title_for(visible_entity, entity_id),
+                    score=score,
+                    matched_fields=matched_fields,
+                    data=visible_entity,
+                )
+            )
+
+        token_results.sort(
+            key=lambda item: (-item.score, item.entity_type, item.entity_id)
+        )
+        return token_results
 
     def _load_profile(self) -> ProfileMapping:
         try:
@@ -439,6 +528,28 @@ class ProfileService:
         normalized_query: str,
         relationship_terms: dict[tuple[str, str], list[str]],
     ) -> tuple[float, tuple[str, ...]]:
+        buckets = self._score_buckets(
+            entity_type, entity_id, entity, relationship_terms
+        )
+
+        score = 0.0
+        matched: list[str] = []
+        for label, values, exact_score, contains_score in buckets:
+            bucket_score = self._score_values(
+                values, normalized_query, exact_score, contains_score
+            )
+            if bucket_score > 0:
+                score = max(score, bucket_score)
+                matched.append(label)
+        return score, tuple(matched)
+
+    def _score_buckets(
+        self,
+        entity_type: str,
+        entity_id: str,
+        entity: ProfileMapping,
+        relationship_terms: dict[tuple[str, str], list[str]],
+    ) -> list[tuple[str, list[str], float, float]]:
         buckets: list[tuple[str, list[str], float, float]] = [
             ("id", [entity_id], 100.0, 90.0),
             (
@@ -469,16 +580,7 @@ class ProfileService:
         for key, values in body_values:
             buckets.append((key, values, 35.0, 25.0))
 
-        score = 0.0
-        matched: list[str] = []
-        for label, values, exact_score, contains_score in buckets:
-            bucket_score = self._score_values(
-                values, normalized_query, exact_score, contains_score
-            )
-            if bucket_score > 0:
-                score = max(score, bucket_score)
-                matched.append(label)
-        return score, tuple(matched)
+        return buckets
 
     @staticmethod
     def _score_values(
@@ -497,6 +599,82 @@ class ProfileService:
             elif normalized_query in normalized_value:
                 best = max(best, contains_score)
         return best
+
+    def _score_entity_tokens(
+        self,
+        entity_type: str,
+        entity_id: str,
+        entity: ProfileMapping,
+        query_terms: list[str],
+        relationship_terms: dict[tuple[str, str], list[str]],
+    ) -> tuple[float, tuple[str, ...]]:
+        buckets = self._score_buckets(
+            entity_type, entity_id, entity, relationship_terms
+        )
+        score = 0.0
+        matched_terms = 0
+        matched: list[str] = []
+        for term in query_terms:
+            term_score = 0.0
+            term_fields: list[str] = []
+            for label, values, exact_score, contains_score in buckets:
+                bucket_score = self._score_token_values(
+                    values, term, exact_score, contains_score
+                )
+                if bucket_score > 0:
+                    term_score = max(term_score, bucket_score)
+                    term_fields.append(label)
+            if term_score > 0:
+                matched_terms += 1
+                score = max(score, term_score)
+                for field in term_fields:
+                    if field not in matched:
+                        matched.append(field)
+
+        if matched_terms == 0:
+            return 0.0, ()
+        # Keep field priority dominant while making multi-term matches rank
+        # ahead of one-term matches in the same field bucket.
+        return score + min(20.0, 10.0 * float(matched_terms - 1)), tuple(matched)
+
+    @classmethod
+    def _score_token_values(
+        cls,
+        values: list[str],
+        token: str,
+        exact_score: float,
+        contains_score: float,
+    ) -> float:
+        best = 0.0
+        for value in values:
+            normalized_value = cls._normalize(value)
+            if not normalized_value:
+                continue
+            if token not in cls._tokenize(normalized_value):
+                continue
+            value_score = (
+                exact_score if normalized_value == token else contains_score
+            )
+            best = max(best, value_score)
+        return best
+
+    @classmethod
+    def _meaningful_query_terms(cls, value: str) -> list[str]:
+        tokenized = cls._tokenize(value)
+        terms = [token for token in tokenized if token not in cls._QUERY_STOPWORDS]
+        if len(tokenized) > 1:
+            terms = [
+                token
+                for token in terms
+                if not token.isdigit() and len(token) > 1
+            ]
+        return list(dict.fromkeys(terms))
+
+    @classmethod
+    def _tokenize(cls, value: str) -> list[str]:
+        normalized = cls._normalize(value)
+        tokenized = re.sub(r"[^\w]+", " ", normalized, flags=re.UNICODE)
+        return [token for token in tokenized.split() if token]
 
     @staticmethod
     def _normalize(value: str) -> str:
