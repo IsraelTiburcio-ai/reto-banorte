@@ -255,16 +255,14 @@ class OpenResponsesAdapter:
         """Use prior user text only as bounded retrieval context for follow-ups."""
 
         turn = self._agent_core.prepare(current_user_query)
-        if turn.status == "ready" and not self._is_context_dependent_followup(
-            current_user_query
-        ):
+        if not self._is_context_dependent_followup(current_user_query):
             return turn
 
         prior_user_text = [
             message.text
             for message in transcript[:-1]
             if message.role == "user"
-        ][-3:]
+        ][-2:]
         if not prior_user_text:
             return turn
 
@@ -289,15 +287,32 @@ class OpenResponsesAdapter:
         which_terms = tokens & _FOLLOWUP_WHICH_TERMS
         has_demonstrative = bool(tokens & _FOLLOWUP_DEMONSTRATIVES)
         has_anaphoric_verb = bool(tokens & _FOLLOWUP_ANAPHORIC_VERBS)
+        has_explicit_topic = OpenResponsesAdapter._has_explicit_topic(query)
+        if which_terms and has_explicit_topic:
+            return False
         return bool(
             has_demonstrative
-            or (which_terms and ("de" in tokens or ("y" in tokens and has_anaphoric_verb)))
+            or (which_terms and ("de" in tokens or has_anaphoric_verb))
             or (
                 {"para", "que"} <= tokens
                 and bool(tokens & {"lo", "la", "los", "las"})
                 and has_anaphoric_verb
             )
         )
+
+    @staticmethod
+    def _has_explicit_topic(query: str) -> bool:
+        """Recognize an explicit named topic without maintaining a topic list."""
+
+        words = re.findall(r"[\w-]+", query, flags=re.UNICODE)
+        for index, word in enumerate(words):
+            if index == 0:
+                continue
+            if "-" in word or (word.isupper() and len(word) > 1):
+                return True
+            if word[:1].isupper() and word.casefold() not in {"cuál", "cual", "cuáles", "cuales"}:
+                return True
+        return False
 
     @staticmethod
     def _serialize_sse(response: dict[str, object]) -> str:

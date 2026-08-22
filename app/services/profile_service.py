@@ -536,10 +536,15 @@ class ProfileService:
 
     @classmethod
     def _is_academic_project(cls, entity: ProfileMapping) -> bool:
-        searchable = cls._normalize(" ".join(cls._flatten_strings(entity)))
+        tokens = cls._tokenize(
+            cls._normalize(" ".join(cls._flatten_strings(entity)))
+        )
+        token_set = set(tokens)
+        if token_set.intersection({"hackathon", "estudiantes", "unam"}):
+            return True
         return any(
-            marker in searchable
-            for marker in ("hackathon", "estudiantes", "ios development lab", "unam")
+            tuple(tokens[index : index + 3]) == ("ios", "development", "lab")
+            for index in range(max(0, len(tokens) - 2))
         )
 
     def _load_profile(self) -> ProfileMapping:

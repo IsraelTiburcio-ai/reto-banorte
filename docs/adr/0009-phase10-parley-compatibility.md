@@ -31,8 +31,9 @@ text. They are not represented in `ConversationMessage`, cannot reach
 message is the current query. For a bounded set of clearly context-dependent
 follow-ups identified by normalized anaphoric markers (demonstratives,
 referential `cuál/cuáles`, continuation markers, and object-reference verbs),
-the adapter may retry retrieval once with the last few user messages joined to
-that current query; the returned turn keeps the current user question.
+the adapter may retry retrieval once with up to three user messages total:
+the last two prior user messages plus the current query. The returned turn
+keeps the current user question.
 Assistant text and metadata remain structural context only and are never used
 as retrieval instructions or factual evidence. This request-scoped fallback is
 not conversation memory and does not change policy, visibility, evidence

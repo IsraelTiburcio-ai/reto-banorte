@@ -168,6 +168,43 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertNotIn("mba-yo", result_ids)
         self.assertNotIn("fi-fan", result_ids)
 
+    def test_academic_project_markers_use_complete_tokens(self) -> None:
+        profile = minimal_profile()
+        profile["projects"] = [
+            {
+                "id": "tsunami",
+                "visibility": "public",
+                "name": "Tsunami forecasting",
+                "description": "Forecasting project without academic context",
+            },
+            {
+                "id": "unam-lab",
+                "visibility": "public",
+                "name": "iOS Development Lab UNAM",
+                "description": "Academic project for estudiantes",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            profile_path = Path(directory) / "profile.json"
+            profile_path.write_text(json.dumps(profile), encoding="utf-8")
+            service = ProfileService(profile_path)
+
+            academic_ids = {
+                item.entity_id
+                for item in service.search("¿Tiene proyectos académicos?")
+            }
+            professional_ids = {
+                item.entity_id
+                for item in service.search(
+                    "¿Cuáles de sus proyectos fueron profesionales?"
+                )
+            }
+
+        self.assertIn("unam-lab", academic_ids)
+        self.assertNotIn("tsunami", academic_ids)
+        self.assertIn("tsunami", professional_ids)
+        self.assertNotIn("unam-lab", professional_ids)
+
     def test_project_overview_queries_return_projects_only(self) -> None:
         queries = (
             "¿Cuáles son los proyectos más relevantes de Israel?",

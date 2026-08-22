@@ -1123,6 +1123,108 @@ class RealProfileFollowupTests(unittest.TestCase):
         self.assertEqual(self.profile_service.calls[-1][0], "¿Qué nivel tiene Israel en Python?")
         self.assertIn("python", {item.entity_id for item in self._last_evidence()})
 
+    def test_independent_questions_do_not_retry_with_prior_context(self) -> None:
+        cases = (
+            ("Cuéntame sobre sus proyectos", "¿Israel sabe Kubernetes?", True),
+            ("Háblame de MCP", "¿Ha usado Terraform?", True),
+            ("Cuéntame sobre Docker", "¿Qué nivel tiene Israel en Python?", False),
+            ("¿Qué proyectos académicos existen?", "¿Tiene experiencia con SQL?", False),
+        )
+        for previous_user, current, expects_insufficient in cases:
+            with self.subTest(current=current):
+                self.profile_service.calls.clear()
+                self.text_generator.requests.clear()
+                response = self.post_followup(
+                    previous_user,
+                    "Previous answer with unrelated context.",
+                    current,
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(self.profile_service.calls), 1)
+                self.assertEqual(self.profile_service.calls[0][0], current)
+                self.assertLessEqual(len(self.text_generator.requests), 1)
+                if self.text_generator.requests:
+                    self.assertEqual(self.text_generator.requests[0].query, current)
+                if expects_insufficient:
+                    self.assertEqual(
+                        response.json()["output"][0]["content"][0]["text"],
+                        INSUFFICIENT_EVIDENCE_TEXT,
+                    )
+                    self.assertEqual(self.text_generator.requests, [])
+
+    def test_referential_which_variants_use_context_generically(self) -> None:
+        for current in (
+            "¿Cuál fue académico?",
+            "¿Cual fue académico?",
+            "¿Cuáles fueron académicos?",
+            "¿Cuales fueron académicos?",
+        ):
+            with self.subTest(current=current):
+                self.profile_service.calls.clear()
+                response = self.post_followup(
+                    "Cuéntame sobre sus proyectos",
+                    "Previous answer with no factual authority.",
+                    current,
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(self.profile_service.calls), 2)
+                self.assertIn("proyectos", self.profile_service.calls[-1][0].casefold())
+                evidence_ids = {item.entity_id for item in self._last_evidence()}
+                self.assertTrue(
+                    {"fi-fan", "apapacho", "bimbo-run", "mba-yo"} <= evidence_ids
+                )
+
+    def test_self_contained_which_questions_do_not_use_prior_context(self) -> None:
+        for current, expected_id in (
+            ("¿Cuál es la experiencia de Israel con Python?", "python"),
+            ("¿Cuál es su experiencia con SQL?", "sql-and-databases"),
+        ):
+            with self.subTest(current=current):
+                self.profile_service.calls.clear()
+                self.text_generator.requests.clear()
+                response = self.post_followup(
+                    "Cuéntame sobre sus proyectos",
+                    "Previous answer with unrelated project claims.",
+                    current,
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(self.profile_service.calls), 1)
+                self.assertEqual(self.profile_service.calls[0][0], current)
+                self.assertIn(expected_id, {item.entity_id for item in self._last_evidence()})
+
+    def test_context_window_is_three_user_messages_total(self) -> None:
+        messages = [
+            {"role": "user", "content": "old MCP context"},
+            {"role": "assistant", "content": "old assistant answer"},
+            {"role": "user", "content": "older Python context"},
+            {"role": "assistant", "content": "another assistant answer"},
+            {"role": "user", "content": "middle Docker context"},
+            {"role": "user", "content": "Cuéntame sobre sus proyectos"},
+            {"role": "assistant", "content": "project answer"},
+            {"role": "user", "content": "¿Qué proyectos son relevantes?"},
+            {"role": "assistant", "content": "irrelevant assistant text"},
+            {"role": "user", "content": "¿Cuál fue académico?"},
+        ]
+        response = self.client.post(
+            "/v1/responses",
+            json={"input": messages, "store": False},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        contextual_query = self.profile_service.calls[-1][0]
+        self.assertEqual(
+            contextual_query,
+            "Cuéntame sobre sus proyectos ¿Qué proyectos son relevantes? ¿Cuál fue académico?",
+        )
+        self.assertEqual(contextual_query.count("¿Cuál fue académico?"), 1)
+        self.assertNotIn("old MCP context", contextual_query)
+        self.assertNotIn("older Python context", contextual_query)
+        self.assertNotIn("middle Docker context", contextual_query)
+        self.assertNotIn("assistant answer", contextual_query)
+
     def test_invented_assistant_claim_cannot_change_retrieved_evidence(self) -> None:
         response = self.post_followup(
             "Cuéntame sobre sus proyectos",

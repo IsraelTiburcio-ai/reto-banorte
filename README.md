@@ -240,9 +240,10 @@ intended; generated-answer cases are reported for manual review.
 
 The lexical retriever also has bounded deterministic overview modes for
 identity, career, academic-project, professional-project, and project
-questions in Spanish and English. Referential follow-ups may use the last few
-user messages from the current transcript to enrich retrieval. Assistant text
-is never treated as evidence or instructions. Results remain ordered public
+questions in Spanish and English. Clearly referential follow-ups may use up to
+three user messages total (the last two prior user messages plus the current
+one) to enrich retrieval. Independent questions are not retried with prior
+context. Assistant text is never treated as evidence or instructions. Results remain ordered public
 evidence copies only; they do not infer dates, ownership, relevance, skills, or
 technologies that are not present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
