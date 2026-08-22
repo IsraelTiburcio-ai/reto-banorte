@@ -213,6 +213,45 @@ class LLMGenerationTests(unittest.TestCase):
         self.assertFalse(hasattr(generator.requests[0], "model"))
         self.assertEqual(response.json()["model"], "banorte-cv-agent")
 
+    def test_adapter_accepts_stateless_store_forms(self) -> None:
+        payloads = (
+            {"input": "MCP"},
+            {"input": "MCP", "store": False},
+            {"input": "MCP", "store": None},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                generator = RecordingGenerator()
+                adapter = create_app(text_generator=generator).state.open_responses_adapter
+
+                body, status = adapter.create_response(payload)
+
+                self.assertEqual(status, 200)
+                self.assertEqual(body["model"], "banorte-cv-agent")
+
+    def test_adapter_rejects_stateful_store_true(self) -> None:
+        adapter = create_app(text_generator=RecordingGenerator()).state.open_responses_adapter
+
+        body, status = adapter.create_response({"input": "MCP", "store": True})
+
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"]["code"], "unsupported_feature")
+        self.assertEqual(body["error"]["param"], "store")
+        self.assertIn("stateless", body["error"]["message"])
+
+    def test_adapter_rejects_invalid_store_types(self) -> None:
+        adapter = create_app(text_generator=RecordingGenerator()).state.open_responses_adapter
+
+        for store in ("false", 1):
+            with self.subTest(store=store):
+                body, status = adapter.create_response(
+                    {"input": "MCP", "store": store}
+                )
+
+                self.assertEqual(status, 400)
+                self.assertEqual(body["error"]["code"], "invalid_input")
+                self.assertEqual(body["error"]["param"], "store")
+
     def test_openai_model_environment_controls_provider_model(self) -> None:
         responses = FakeResponses(FakeResponse("provider answer"))
         generator = self.make_openai_generator(responses, model="configured-provider")

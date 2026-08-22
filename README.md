@@ -48,7 +48,7 @@ curl -X POST http://localhost:8000/v1/responses \
   -d '{"model":"banorte-cv-agent","input":"¿Qué experiencia tiene Israel con MCP?"}'
 ```
 
-El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no mantiene conversaciones y no acepta `previous_response_id`, `store`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
+El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no mantiene conversaciones: acepta `store` ausente, `null` o `false` como formas stateless, pero rechaza `store=true`; también rechaza `previous_response_id`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
 
 ## Phase 6 — LLM integration
 
