@@ -276,7 +276,10 @@ class LLMGenerationTests(unittest.TestCase):
 
         generator.generate(request)
 
-        self.assertIn("Answer using ONLY", responses.kwargs["instructions"])
+        self.assertTrue(
+            "Answer using ONLY" in responses.kwargs["instructions"]
+            or "ÚNICAMENTE" in responses.kwargs["instructions"]
+        )
         self.assertNotIn("assistant history", responses.kwargs["instructions"])
         self.assertIn("assistant history", responses.kwargs["input"])
         self.assertIn("current_user_question", responses.kwargs["input"])

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from pydantic import ValidationError
 
 from app.agent.core import AgentCore, AgentInputError
-from app.api.open_responses_formatter import INSUFFICIENT_EVIDENCE_TEXT
+from app.api.open_responses_formatter import (
+    INSUFFICIENT_EVIDENCE_TEXT,
+    deterministic_response_for,
+)
 from app.api.open_responses_schemas import (
     OpenResponsesError,
     OpenResponsesErrorEnvelope,
@@ -141,8 +145,18 @@ class OpenResponsesAdapter:
             current_user_query, transcript, input_chars = self._extract_generation_context(
                 request.input
             )
-            turn = self._agent_core.prepare(current_user_query)
-            response_text = self._generate_text(turn, transcript, input_chars)
+            deterministic_response = deterministic_response_for(current_user_query)
+            if deterministic_response is not None:
+                response_text, agent_status = deterministic_response
+                set_request_fields(
+                    agent_status=agent_status,
+                    input_chars=input_chars,
+                    provider_invoked=False,
+                    provider_model=None,
+                )
+            else:
+                turn = self._prepare_turn(current_user_query, transcript)
+                response_text = self._generate_text(turn, transcript, input_chars)
         except OpenResponsesRequestError as exc:
             set_request_fields(error_category=exc.code)
             return self.error_response(
@@ -196,6 +210,47 @@ class OpenResponsesAdapter:
         serialized["error"] = None
         serialized["usage"] = None
         return serialized, 200
+
+    def _prepare_turn(
+        self,
+        current_user_query: str,
+        transcript: tuple[ConversationMessage, ...],
+    ) -> PreparedAgentTurn:
+        """Use prior user text only as bounded retrieval context for follow-ups."""
+
+        turn = self._agent_core.prepare(current_user_query)
+        if turn.status == "ready" and not self._is_context_dependent_followup(
+            current_user_query
+        ):
+            return turn
+
+        prior_user_text = [
+            message.text
+            for message in transcript[:-1]
+            if message.role == "user"
+        ]
+        if not prior_user_text:
+            return turn
+
+        contextual_query = " ".join((*prior_user_text, current_user_query))
+        contextual_turn = self._agent_core.prepare(contextual_query)
+        if contextual_turn.status != "ready":
+            return turn
+        # Keep the user-facing question current while using only prior user
+        # text to recover public evidence for a stateless follow-up.
+        return replace(contextual_turn, query=current_user_query)
+
+    @staticmethod
+    def _is_context_dependent_followup(query: str) -> bool:
+        normalized = re.sub(r"[^\w]+", " ", query.casefold()).split()
+        tokens = set(normalized)
+        compact = " ".join(normalized)
+        return (
+            "para que" in compact
+            or "utilizaba" in tokens
+            or "usabas" in tokens
+            or ("cual" in tokens and bool(tokens & {"esos", "esas", "ello"}))
+        )
 
     @staticmethod
     def _serialize_sse(response: dict[str, object]) -> str:
@@ -623,20 +678,26 @@ class OpenResponsesAdapter:
     ) -> TranscriptMessage:
         item_param = f"input[{index}]"
         item_type = item.get("type")
-        if item_type in UNSUPPORTED_ITEM_TYPES:
+        if isinstance(item_type, str) and item_type in UNSUPPORTED_ITEM_TYPES:
             raise OpenResponsesRequestError(
                 f"Input item type '{item_type}' is not supported.",
                 param=f"{item_param}.type",
                 code="unsupported_feature",
             )
-        if item_type != "message":
+        if item_type is not None and item_type != "message":
             raise OpenResponsesRequestError(
                 "Only message input items are supported.",
                 param=f"{item_param}.type",
                 code="unsupported_input_type",
             )
 
-        extra_fields = set(item) - {"type", "role", "content"}
+        extra_fields = set(item) - {
+            "id",
+            "type",
+            "role",
+            "status",
+            "content",
+        }
         if extra_fields:
             field = sorted(extra_fields)[0]
             raise OpenResponsesRequestError(
@@ -645,14 +706,36 @@ class OpenResponsesAdapter:
                 code="invalid_input",
             )
 
+        item_id = item.get("id")
+        if item_id is not None and (
+            not isinstance(item_id, str)
+            or not re.fullmatch(r"msg_[A-Za-z0-9_-]+", item_id)
+        ):
+            raise OpenResponsesRequestError(
+                "Message id must be a valid msg_ identifier.",
+                param=f"{item_param}.id",
+                code="invalid_input",
+            )
+
+        status = item.get("status")
+        if status is not None and (
+            not isinstance(status, str)
+            or status not in {"in_progress", "completed", "incomplete"}
+        ):
+            raise OpenResponsesRequestError(
+                "Message status is not valid for transcript replay.",
+                param=f"{item_param}.status",
+                code="invalid_input",
+            )
+
         role = item.get("role")
-        if role in {"system", "developer"}:
+        if isinstance(role, str) and role in {"system", "developer"}:
             raise OpenResponsesRequestError(
                 f"The {role} role is not supported in Phase 5.",
                 param=f"{item_param}.role",
                 code="unsupported_feature",
             )
-        if role not in {"user", "assistant"}:
+        if not isinstance(role, str) or role not in {"user", "assistant"}:
             raise OpenResponsesRequestError(
                 "Only user and assistant message roles are supported.",
                 param=f"{item_param}.role",
@@ -692,7 +775,7 @@ class OpenResponsesAdapter:
                         param=part_param,
                         code="unsupported_input_type",
                     )
-                extra_fields = set(part) - {"type", "text"}
+                extra_fields = set(part) - {"type", "text", "annotations"}
                 if extra_fields:
                     field = sorted(extra_fields)[0]
                     raise OpenResponsesRequestError(
@@ -701,7 +784,7 @@ class OpenResponsesAdapter:
                         code="invalid_input",
                     )
                 part_type = part.get("type")
-                if part_type in UNSUPPORTED_ITEM_TYPES:
+                if isinstance(part_type, str) and part_type in UNSUPPORTED_ITEM_TYPES:
                     raise OpenResponsesRequestError(
                         f"Content type '{part_type}' is not supported.",
                         param=f"{part_param}.type",
@@ -712,6 +795,19 @@ class OpenResponsesAdapter:
                         f"Expected {expected_type} content for {role} messages.",
                         param=f"{part_param}.type",
                         code="unsupported_input_type",
+                    )
+                annotations = part.get("annotations")
+                if annotations is not None and (
+                    not isinstance(annotations, list)
+                    or any(
+                        not isinstance(annotation, dict)
+                        for annotation in annotations
+                    )
+                ):
+                    raise OpenResponsesRequestError(
+                        "Annotations must be a list of objects.",
+                        param=f"{part_param}.annotations",
+                        code="invalid_input",
                     )
                 part_text = part.get("text")
                 if not isinstance(part_text, str):

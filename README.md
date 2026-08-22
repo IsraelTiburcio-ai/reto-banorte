@@ -6,7 +6,7 @@ Construir un agente conversacional que permita explorar el perfil profesional de
 
 ## Estado
 
-Phase 9 — Containerization / Docker
+Phase 10 — Parley compatibility and retrieval robustness
 
 La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
 
@@ -216,6 +216,38 @@ Endpoints para smoke tests:
 Phase 9 solo prepara la imagen. Cloud Run, GCP, Artifact Registry, Secret
 Manager, IAM, Compose, Kubernetes y deployment permanecen fuera de alcance.
 
+## Phase 10 — Parley compatibility and retrieval robustness
+
+Phase 10 keeps `POST /v1/responses` stateless while accepting the structural
+metadata emitted when Parley replays a transcript. Assistant messages may
+include a valid `msg_` `id`, `type: "message"`, a supported lifecycle
+`status`, and `output_text` annotations. These fields are validated as
+transport metadata, then discarded before `AgentCore` or the provider prompt;
+only message roles and text remain. `system` and `developer` roles,
+stateful continuation, and unsupported capabilities remain rejected.
+
+Standalone greetings (`hola`, `hello`, `hey`, and the supported Spanish
+greetings), thanks, goodbyes, and a small set of agent meta questions use fixed
+local responses without retrieval or a provider call. Sensitive and explicit
+out-of-scope prompts receive a safe domain redirect. A greeting followed by a
+question uses the normal grounded pipeline.
+
+The auditable pre-Banorte QA fixture is `evals/pre_banorte_cases.json` (30
+cases). Run `python3 scripts/pre_banorte_smoke.py` for the default offline
+validation; it makes zero HTTP/provider calls and does not use an LLM judge.
+Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
+intended; generated-answer cases are reported for manual review.
+
+The lexical retriever also has bounded deterministic overview modes for
+identity, career, and project questions in Spanish and English. They return
+ordered public evidence copies only; they do not infer dates, ownership,
+relevance, skills, or technologies that are not present in the profile.
+Exact IDs, names, titles, and existing substring ranking remain unchanged.
+
+Phase 10 does not add conversation memory, provider streaming, new
+dependencies, or private Parley data. The SSE transport remains the existing
+materialized-response compatibility path.
+
 ### Validación local del contenedor
 
 La siguiente validación se ejecutó localmente en macOS Apple Silicon `arm64`
@@ -239,8 +271,8 @@ con Docker `29.7.2`; no es una validación de Cloud Run:
   aplicación.
 
 La compatibilidad con Cloud Run continúa siendo una decisión de diseño
-preparatoria. El despliegue real y sus recursos pertenecen a Phase 10 y aún no
-se han iniciado.
+preparatoria. El despliegue real y sus recursos están fuera del trabajo actual
+de compatibilidad de Phase 10.
 
 ## Ejecución local
 
@@ -268,8 +300,9 @@ curl -X POST http://127.0.0.1:8000/agent/prepare \
 7. Evaluations
 8. Security and observability
 9. Containerization
-10. Cloud deployment
-11. Documentation and demo
+10. Parley compatibility and retrieval robustness
+11. Cloud deployment
+12. Documentation and demo
 
 ## Filosofía de arquitectura
 

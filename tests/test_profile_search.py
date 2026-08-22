@@ -131,6 +131,58 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertIn("mcp-analytics", result_ids)
         self.assertIn("mcp-order-status", result_ids)
 
+    def test_career_overview_queries_prioritize_career_evidence(self) -> None:
+        queries = (
+            "¿Cómo decidió dedicarse a IA?",
+            "¿Qué lo llevó hacia inteligencia artificial?",
+            "Cuando Israel tomó la decisión de dedicarse a la inteligencia artificial",
+            "¿Qué me puedes decir de su trayectoria?",
+        )
+        for query in queries:
+            with self.subTest(query=query):
+                results = self.service.search(query)
+                self.assertTrue(results)
+                self.assertEqual(results[0].entity_id, "career_story")
+                self.assertIn("professional_summary", {item.entity_id for item in results})
+                self.assertTrue(all(item.data.get("visibility") == "public" for item in results))
+
+    def test_academic_project_overview_keeps_academic_distinction(self) -> None:
+        results = self.service.search("¿Tiene proyectos académicos?")
+        result_ids = [item.entity_id for item in results]
+        self.assertIn("mba-yo", result_ids)
+        self.assertTrue(all(item.entity_type == "project" for item in results))
+        self.assertNotIn("docker", result_ids)
+
+    def test_project_overview_queries_return_projects_only(self) -> None:
+        queries = (
+            "¿Cuáles son los proyectos más relevantes de Israel?",
+            "Dime sus proyectos principales",
+            "¿Qué proyectos destacas de su trayectoria?",
+            "What are Israel's main projects?",
+        )
+        for query in queries:
+            with self.subTest(query=query):
+                results = self.service.search(query)
+                self.assertGreaterEqual(len(results), 4)
+                self.assertTrue(all(item.entity_type == "project" for item in results))
+                self.assertNotIn("docker", {item.entity_id for item in results})
+                self.assertTrue(all(item.data.get("visibility") == "public" for item in results))
+
+    def test_identity_overview_queries_return_identity_evidence(self) -> None:
+        for query in (
+            "¿Quién es Israel?",
+            "Qué me puedes decir de Israel Tiburcio",
+            "Tell me about Israel",
+        ):
+            with self.subTest(query=query):
+                results = self.service.search(query)
+                self.assertGreaterEqual(len(results), 3)
+                self.assertEqual(results[0].entity_id, "identity")
+                self.assertEqual(
+                    [item.entity_id for item in results[:3]],
+                    ["identity", "professional_summary", "career_story"],
+                )
+
     def test_punctuation_falls_back_to_significant_terms(self) -> None:
         result_ids = self.ids_for("MCP?!,.")
         self.assertIn("mcp", result_ids)

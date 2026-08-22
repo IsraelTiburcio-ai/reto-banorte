@@ -57,10 +57,86 @@ class ProfileService:
         ("achievements", "achievement"),
     )
     _ROOT_DOCUMENTS: tuple[tuple[str, str], ...] = (
+        ("identity", "Identity"),
         ("professional_summary", "Professional summary"),
         ("career_story", "Career story"),
         ("working_style", "Working style"),
     )
+    _PROJECT_OVERVIEW_TERMS = {
+        "are",
+        "cuales",
+        "cual",
+        "main",
+        "mas",
+        "most",
+        "overview",
+        "academic",
+        "academics",
+        "academico",
+        "academicos",
+        "algunos",
+        "algunas",
+        "project",
+        "projects",
+        "proyecto",
+        "proyectos",
+        "principal",
+        "principales",
+        "relevant",
+        "relevance",
+        "relevante",
+        "relevantes",
+        "importante",
+        "importantes",
+        "important",
+        "profesionales",
+        "destaca",
+        "destacas",
+        "destacado",
+        "destacados",
+    }
+    _CAREER_OVERVIEW_TERMS = {
+        "story",
+        "trayectoria",
+        "recorrido",
+        "carrera",
+        "camino",
+        "career",
+        "decidio",
+        "decision",
+        "dedicarse",
+        "enfoque",
+        "llevo",
+        "llego",
+        "motivacion",
+        "historia",
+        "transicion",
+        "ia",
+        "inteligencia",
+        "artificial",
+        "trabajar",
+        "trabajo",
+        "evolucionado",
+        "evolucion",
+        "profesionalmente",
+        "profesional",
+        "sido",
+    }
+    _IDENTITY_OVERVIEW_TERMS = {
+        "about",
+        "can",
+        "contar",
+        "dime",
+        "quien",
+        "who",
+        "decir",
+        "cuentame",
+        "hablame",
+        "resumen",
+        "perfil",
+        "dame",
+    }
+    _OVERVIEW_NAME_TERMS = {"israel", "tiburcio"}
     _REQUIRED_SECTIONS: tuple[str, ...] = (
         "metadata",
         "identity",
@@ -108,13 +184,22 @@ class ProfileService:
         "about",
         "al",
         "and",
+        "area",
+        "are",
+        "as",
+        "can",
         "con",
+        "como",
         "cual",
         "cuales",
+        "cuentame",
         "cuál",
         "cuáles",
         "de",
         "del",
+        "decir",
+        "contar",
+        "dame",
         "dime",
         "el",
         "en",
@@ -122,25 +207,43 @@ class ProfileService:
         "experience",
         "experiencia",
         "for",
+        "ha",
         "has",
         "have",
+        "hacia",
         "how",
         "israel",
         "la",
         "las",
+        "lo",
         "los",
         "me",
         "of",
         "por",
         "please",
+        "puede",
+        "puedes",
         "qué",
         "que",
+        "s",
+        "his",
+        "her",
+        "their",
+        "which",
+        "who",
+        "sido",
+        "son",
         "sobre",
+        "su",
+        "sus",
         "tell",
         "tengo",
         "tiene",
         "the",
         "this",
+        "cuando",
+        "tomar",
+        "tomo",
         "what",
         "with",
         "y",
@@ -195,6 +298,11 @@ class ProfileService:
         if not normalized_query:
             return []
 
+        query_terms = self._meaningful_query_terms(query)
+        broad_intent = self._detect_broad_intent(normalized_query, query_terms)
+        if broad_intent is not None:
+            return self._search_broad_intent(broad_intent, visibility)
+
         relationship_terms = self._build_relationship_terms(visibility)
         results: list[SearchResult] = []
         for entity_type, entity_id, entity in self._iter_search_entities():
@@ -225,7 +333,6 @@ class ProfileService:
         if results:
             return results
 
-        query_terms = self._meaningful_query_terms(query)
         if not query_terms:
             return []
 
@@ -269,6 +376,138 @@ class ProfileService:
             key=lambda item: (-item.score, item.entity_type, item.entity_id)
         )
         return token_results
+
+    @classmethod
+    def _detect_broad_intent(
+        cls, normalized_query: str, query_terms: list[str]
+    ) -> str | None:
+        """Recognize bounded overview requests without matching question noise."""
+
+        raw_terms = set(cls._tokenize(normalized_query))
+        terms = set(query_terms)
+        common_terms = cls._QUERY_STOPWORDS | cls._OVERVIEW_NAME_TERMS
+
+        if (
+            raw_terms.intersection(
+                {"academico", "academicos", "academic", "academics"}
+            )
+            and raw_terms.intersection(
+                {"proyecto", "proyectos", "project", "projects"}
+            )
+            and raw_terms
+            <= cls._PROJECT_OVERVIEW_TERMS
+            | common_terms
+            | {"academic", "academics", "academico", "academicos", "what", "which"}
+        ):
+            return "academic_project_overview"
+
+        if (
+            raw_terms.intersection(cls._PROJECT_OVERVIEW_TERMS)
+            and raw_terms
+            <= cls._PROJECT_OVERVIEW_TERMS | common_terms | {"which", "what"}
+        ):
+            return "project_overview"
+
+        if (
+            raw_terms.intersection(
+                {"proyecto", "proyectos", "project", "projects"}
+            )
+            and raw_terms
+            <= cls._PROJECT_OVERVIEW_TERMS
+            | common_terms
+            | {"trayectoria", "trajectory", "which", "what"}
+        ):
+            return "project_overview"
+
+        if (
+            raw_terms.intersection(cls._CAREER_OVERVIEW_TERMS)
+            and raw_terms
+            <= cls._CAREER_OVERVIEW_TERMS | common_terms | {"what", "how", "has"}
+        ):
+            return "career_overview"
+
+        if (
+            raw_terms.intersection(cls._IDENTITY_OVERVIEW_TERMS)
+            and raw_terms
+            <= cls._IDENTITY_OVERVIEW_TERMS
+            | common_terms
+            | {"what", "which", "who", "is"}
+        ):
+            return "identity_overview"
+
+        # A one-token meaningful query such as ``proyectos`` should still be
+        # useful, while an arbitrary noise-only query remains empty.
+        if terms == {"proyectos"} or terms == {"proyecto"}:
+            return "project_overview"
+        return None
+
+    def _search_broad_intent(
+        self, intent: str, visibility: VisibilityPolicy
+    ) -> list[SearchResult]:
+        """Return ordered, visible evidence for a bounded overview request."""
+
+        visible_entities = {
+            (entity_type, entity_id): visible_entity
+            for entity_type, entity_id, entity in self._iter_search_entities()
+            if (visible_entity := self._visible_entity(entity, visibility)) is not None
+        }
+
+        if intent == "project_overview":
+            ordered_keys = [
+                key for key in visible_entities if key[0] == "project"
+            ]
+        elif intent == "academic_project_overview":
+            ordered_keys = [
+                key
+                for key, entity in visible_entities.items()
+                if key[0] == "project" and self._is_academic_project(entity)
+            ]
+        elif intent == "career_overview":
+            preferred_types = [
+                ("document", "career_story"),
+                ("document", "professional_summary"),
+                ("document", "identity"),
+                ("experience", "prixz"),
+            ]
+            ordered_keys = [
+                key for key in preferred_types if key in visible_entities
+            ]
+            ordered_keys.extend(
+                key
+                for key in visible_entities
+                if key[0] == "experience" and key not in ordered_keys
+            )
+        elif intent == "identity_overview":
+            preferred_types = [
+                ("document", "identity"),
+                ("document", "professional_summary"),
+                ("document", "career_story"),
+            ]
+            ordered_keys = [
+                key for key in preferred_types if key in visible_entities
+            ]
+        else:
+            return []
+
+        return [
+            SearchResult(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                title=self._title_for(visible_entities[(entity_type, entity_id)], entity_id),
+                score=60.0 - (index * 0.01),
+                matched_fields=("overview",),
+                data=visible_entities[(entity_type, entity_id)],
+            )
+            for index, (entity_type, entity_id) in enumerate(ordered_keys)
+        ]
+
+    @classmethod
+    def _is_academic_project(cls, entity: ProfileMapping) -> bool:
+        searchable = cls._normalize(" ".join(cls._flatten_strings(entity)))
+        return any(
+            marker in searchable
+            for marker in ("hackathon", "estudiantes", "ios development lab", "unam")
+        )
 
     def _load_profile(self) -> ProfileMapping:
         try:
@@ -563,7 +802,14 @@ class ProfileService:
         context_values: list[tuple[str, list[str]]] = []
         body_values: list[tuple[str, list[str]]] = []
         for key, value in entity.items():
-            if key in {"id", "name", "title", "visibility", "evidence_level"}:
+            if key in {
+                "id",
+                "name",
+                "title",
+                "full_name",
+                "visibility",
+                "evidence_level",
+            }:
                 continue
             values = self._flatten_strings(value)
             if not values:
@@ -721,7 +967,7 @@ class ProfileService:
 
     @staticmethod
     def _title_for(entity: ProfileMapping, entity_id: str) -> str:
-        for key in ("name", "title", "organization", "program"):
+        for key in ("name", "title", "organization", "program", "full_name"):
             value = entity.get(key)
             if isinstance(value, str) and value.strip():
                 return value

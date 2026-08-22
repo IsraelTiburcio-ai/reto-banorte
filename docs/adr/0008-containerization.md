@@ -115,4 +115,4 @@ balanceo; esos temas pertenecen a fases posteriores.
   disponibles para la plataforma.
 - El proceso usa un solo worker, sin optimización prematura de concurrencia.
 - Los tests Python estáticos y los smoke tests Docker locales son validaciones
-  separadas; ninguno reemplaza la validación y despliegue de Phase 10.
+  separadas; ninguno reemplaza una futura validación y despliegue cloud.

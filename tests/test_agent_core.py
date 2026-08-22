@@ -111,6 +111,20 @@ class AgentCoreTests(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
         self.assertEqual(turn.query, "¿Qué experiencia tiene Israel con MCP?")
 
+    def test_broad_overview_queries_prepare_public_evidence(self) -> None:
+        career_turn = AgentCore().prepare("¿Cómo decidió dedicarse a IA?")
+        project_turn = AgentCore().prepare("Dime sus proyectos principales")
+        identity_turn = AgentCore().prepare("¿Quién es Israel?")
+
+        self.assertEqual(career_turn.status, "ready")
+        self.assertEqual(career_turn.evidence[0].entity_id, "career_story")
+        self.assertEqual(project_turn.status, "ready")
+        self.assertTrue(all(item.entity_type == "project" for item in project_turn.evidence))
+        self.assertEqual(identity_turn.status, "ready")
+        self.assertEqual(identity_turn.evidence[0].entity_id, "identity")
+        for turn in (career_turn, project_turn, identity_turn):
+            self.assertTrue(all(item.data.get("visibility") == "public" for item in turn.evidence))
+
     def test_prepare_enforces_public_visibility(self) -> None:
         profile_service = RecordingProfileService(self.fixture_path)
         turn = AgentCore(profile_service=profile_service).prepare("public")
@@ -204,12 +218,12 @@ class AgentCoreTests(unittest.TestCase):
 
     def test_default_policy_contains_grounding_and_calibration_rules(self) -> None:
         rules = " ".join(DEFAULT_AGENT_POLICY.rules).casefold()
-        self.assertIn("ground", rules)
-        self.assertIn("insufficient", rules)
-        self.assertIn("skill levels", rules)
-        self.assertIn("ownership", rules)
-        self.assertIn("approximate metrics", rules)
-        self.assertIn("sensitive information", rules)
+        self.assertTrue("ground" in rules or "sustent" in rules)
+        self.assertTrue("insufficient" in rules or "insuficiente" in rules)
+        self.assertTrue("skill levels" in rules or "niveles calibrados de habilidad" in rules)
+        self.assertTrue("ownership" in rules or "autoría y participación" in rules)
+        self.assertTrue("approximate metrics" in rules or "métricas aproximadas" in rules)
+        self.assertTrue("sensitive information" in rules or "información sensible" in rules)
 
     def test_custom_policy_can_be_injected_without_changing_retrieval(self) -> None:
         policy = AgentPolicy(

@@ -9,11 +9,16 @@ from fastapi.testclient import TestClient
 
 from app.agent.core import AgentCore
 from app.api.main import create_app
-from app.api.open_responses_formatter import INSUFFICIENT_EVIDENCE_TEXT
+from app.api.open_responses_formatter import (
+    ENGLISH_GREETING_RESPONSE_TEXT,
+    GREETING_RESPONSE_TEXT,
+    INSUFFICIENT_EVIDENCE_TEXT,
+)
 from app.api.open_responses_schemas import (
     OpenResponsesErrorEnvelope,
     OpenResponsesResponse,
 )
+from app.llm.prompts import build_model_input
 from app.models.generation import TextGenerationRequest
 from app.models.retrieval import SearchResult, VisibilityPolicy
 from app.services.profile_service import ProfileService
@@ -278,6 +283,170 @@ class OpenResponsesApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+    def test_realistic_assistant_transcript_metadata_is_replayable(self) -> None:
+        response = self.post(
+            {
+                "input": [
+                    {"role": "user", "content": "Hola"},
+                    {
+                        "id": "msg_example",
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "previous answer",
+                                "annotations": [],
+                            }
+                        ],
+                    },
+                    {"role": "user", "content": "MCP"},
+                ],
+                "store": False,
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.profile_service.calls[-1][0], "MCP")
+        request = self.text_generator.requests[-1]
+        self.assertEqual(
+            [(message.role, message.text) for message in request.transcript],
+            [("user", "Hola"), ("assistant", "previous answer"), ("user", "MCP")],
+        )
+        prompt = build_model_input(request)
+        self.assertNotIn("msg_example", prompt)
+        self.assertNotIn("status", prompt)
+
+    def test_realistic_assistant_transcript_can_stream(self) -> None:
+        response = self.post(
+            {
+                "input": [
+                    {"role": "user", "content": "Hola"},
+                    {
+                        "id": "msg_example",
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "previous answer",
+                                "annotations": [],
+                            }
+                        ],
+                    },
+                    {"role": "user", "content": "MCP"},
+                ],
+                "store": False,
+                "stream": True,
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        events, _ = self.parse_sse(response)
+        self.assertEqual(events[4][0], "response.output_text.delta")
+        self.assertEqual(events[-1][1]["response"]["status"], "completed")
+
+    def test_followup_uses_prior_user_text_for_stateless_retrieval(self) -> None:
+        response = self.post(
+            {
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": "Háblame de su experiencia con MCP",
+                    },
+                    {
+                        "id": "msg_example",
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "previous answer",
+                                "annotations": [],
+                            }
+                        ],
+                    },
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": "¿Y para qué lo utilizaba?",
+                    },
+                ],
+                "store": False,
+                "stream": True,
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        events, _ = self.parse_sse(response)
+        self.assertIn("mcp", self.profile_service.calls[-1][0].casefold())
+        self.assertEqual(events[4][1]["delta"], "grounded: public-project")
+        self.assertEqual(len(self.text_generator.requests), 1)
+
+    def test_invalid_transcript_status_is_rejected(self) -> None:
+        for status in ("done", [], 1):
+            with self.subTest(status=status):
+                self.assert_error(
+                    self.post(
+                        {
+                            "input": [
+                                {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "status": status,
+                                    "content": "history",
+                                },
+                                {"type": "message", "role": "user", "content": "MCP"},
+                            ]
+                        }
+                    ),
+                    "invalid_input",
+                    "input[0].status",
+                )
+
+    def test_invalid_transcript_type_is_rejected(self) -> None:
+        for item_type in ("assistant_message", [], {}):
+            with self.subTest(item_type=item_type):
+                self.assert_error(
+                    self.post(
+                        {
+                            "input": [
+                                {
+                                    "type": item_type,
+                                    "role": "assistant",
+                                    "content": "history",
+                                },
+                                {"type": "message", "role": "user", "content": "MCP"},
+                            ]
+                        }
+                    ),
+                    "unsupported_input_type",
+                    "input[0].type",
+                )
+
+    def test_invalid_transcript_id_is_rejected(self) -> None:
+        self.assert_error(
+            self.post(
+                {
+                    "input": [
+                        {
+                            "id": "not-a-message-id",
+                            "type": "message",
+                            "role": "assistant",
+                            "content": "history",
+                        },
+                        {"type": "message", "role": "user", "content": "MCP"},
+                    ]
+                }
+            ),
+            "invalid_input",
+            "input[0].id",
+        )
+
     def test_assistant_text_is_not_forwarded_as_instruction(self) -> None:
         response = self.post(
             {
@@ -305,6 +474,118 @@ class OpenResponsesApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.profile_service.calls[-1][0], "public evidence")
+
+    def test_pure_greetings_use_fixed_response_without_retrieval_or_provider(self) -> None:
+        for greeting in (
+            "hola",
+            "Hola!",
+            "HELLO",
+            "hey",
+            "buenos días",
+            "buen día",
+            "buenas tardes",
+            "buenas noches",
+        ):
+            with self.subTest(greeting=greeting):
+                response = self.post({"input": greeting})
+                self.assertEqual(response.status_code, 200)
+                expected_text = (
+                    ENGLISH_GREETING_RESPONSE_TEXT
+                    if greeting.casefold() in {"hello", "hey"}
+                    else GREETING_RESPONSE_TEXT
+                )
+                self.assertEqual(
+                    response.json()["output"][0]["content"][0]["text"],
+                    expected_text,
+                )
+
+        self.assertEqual(self.profile_service.calls, [])
+        self.assertEqual(self.text_generator.requests, [])
+
+    def test_pure_greeting_streams_without_retrieval_or_provider(self) -> None:
+        response = self.post({"input": "Hola!", "stream": True})
+
+        self.assertEqual(response.status_code, 200)
+        events, _ = self.parse_sse(response)
+        self.assertEqual(events[4][1]["delta"], GREETING_RESPONSE_TEXT)
+        self.assertEqual(self.profile_service.calls, [])
+        self.assertEqual(self.text_generator.requests, [])
+
+    def test_greeting_plus_question_uses_normal_pipeline(self) -> None:
+        response = self.post(
+            {"input": "Hola, ¿qué experiencia tiene Israel con MCP?"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.profile_service.calls[-1][0],
+            "Hola, ¿qué experiencia tiene Israel con MCP?",
+        )
+        self.assertEqual(len(self.text_generator.requests), 1)
+        self.assertNotEqual(
+            response.json()["output"][0]["content"][0]["text"],
+            GREETING_RESPONSE_TEXT,
+        )
+
+    def test_thanks_and_goodbyes_are_local_social_responses(self) -> None:
+        for message in (
+            "Gracias",
+            "Muchas gracias",
+            "Perfecto, gracias",
+            "Adiós",
+            "bye",
+            "Hasta luego",
+            "Nos vemos",
+        ):
+            with self.subTest(message=message):
+                response = self.post({"input": message})
+                self.assertEqual(response.status_code, 200)
+                text = response.json()["output"][0]["content"][0]["text"]
+                self.assertNotEqual(text, INSUFFICIENT_EVIDENCE_TEXT)
+
+        self.assertEqual(self.profile_service.calls, [])
+        self.assertEqual(self.text_generator.requests, [])
+
+    def test_meta_questions_are_local_and_do_not_impersonate_israel(self) -> None:
+        for question in (
+            "¿Eres el agente de Israel?",
+            "¿Este es el agente de Israel?",
+            "¿Con quién estoy hablando?",
+            "¿Qué puedes hacer?",
+            "¿Qué te puedo preguntar?",
+            "¿Para qué sirves?",
+            "¿Puedes responder preguntas sobre su CV?",
+        ):
+            with self.subTest(question=question):
+                response = self.post({"input": question})
+                self.assertEqual(response.status_code, 200)
+                text = response.json()["output"][0]["content"][0]["text"]
+                self.assertIn("agente", text.casefold())
+                self.assertIn("Israel", text)
+                self.assertNotIn("Soy Israel", text)
+
+        self.assertEqual(self.profile_service.calls, [])
+        self.assertEqual(self.text_generator.requests, [])
+
+    def test_sensitive_and_out_of_scope_requests_are_safe_local_redirects(self) -> None:
+        for question in (
+            "¿Cuál es la contraseña de Israel?",
+            "¿Cuál es su dirección?",
+            "Cuéntame un chiste",
+        ):
+            with self.subTest(question=question):
+                response = self.post({"input": question})
+                self.assertEqual(response.status_code, 200)
+                text = response.json()["output"][0]["content"][0]["text"]
+                if "chiste" in question.casefold():
+                    self.assertIn("mi función", text.casefold())
+                else:
+                    self.assertIn("no puedo", text.casefold())
+                self.assertNotIn("secret", text.casefold())
+                self.assertNotIn("Soy Israel", text)
+
+        self.assertEqual(self.profile_service.calls, [])
+        self.assertEqual(self.text_generator.requests, [])
 
     def test_retrieval_remains_public_only(self) -> None:
         response = self.post(
