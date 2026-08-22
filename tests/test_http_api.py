@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.agent.core import AgentCore
 from app.api.main import create_app
+from app.models.generation import TextGenerationRequest
 from app.models.retrieval import SearchResult
 from app.services.profile_service import ProfileService
 
@@ -35,11 +36,18 @@ def result(entity_id: str, score: float = 50.0) -> SearchResult:
     )
 
 
+class StubTextGenerator:
+    def generate(self, request: TextGenerationRequest) -> str:
+        return "stub grounded response"
+
+
 class HttpApiTests(unittest.TestCase):
     def client_for(self, results: list[SearchResult]) -> tuple[TestClient, StubProfileService]:
         profile_service = StubProfileService(results)
         core = AgentCore(profile_service=profile_service)
-        return TestClient(create_app(agent_core=core)), profile_service
+        return TestClient(
+            create_app(agent_core=core, text_generator=StubTextGenerator())
+        ), profile_service
 
     def test_health_endpoint(self) -> None:
         client, _ = self.client_for([])

@@ -1,4 +1,4 @@
-"""FastAPI application exposing the Phase 4 and Phase 5 HTTP boundaries."""
+"""FastAPI application exposing the Phase 4, 5, and 6 HTTP boundaries."""
 
 from __future__ import annotations
 
@@ -8,18 +8,25 @@ from fastapi.responses import JSONResponse
 from app.agent.core import AgentCore, AgentInputError
 from app.api.open_responses import OpenResponsesAdapter
 from app.api.schemas import AgentPrepareRequest, AgentPrepareResponse, HealthResponse
+from app.models.generation import TextGenerator
 
 
-def create_app(agent_core: AgentCore | None = None) -> FastAPI:
+def create_app(
+    agent_core: AgentCore | None = None,
+    text_generator: TextGenerator | None = None,
+) -> FastAPI:
     """Create the HTTP application around a trusted ``AgentCore`` instance."""
 
     app = FastAPI(
         title="Reto IA Banorte — CV Agent",
-        version="0.5.0",
-        description="Phase 5 HTTP API for deterministic CV-agent preparation.",
+        version="0.6.0",
+        description="Phase 6 HTTP API for grounded CV-agent generation.",
     )
     app.state.agent_core = agent_core if agent_core is not None else AgentCore()
-    app.state.open_responses_adapter = OpenResponsesAdapter(app.state.agent_core)
+    app.state.open_responses_adapter = OpenResponsesAdapter(
+        app.state.agent_core,
+        text_generator=text_generator,
+    )
 
     @app.exception_handler(AgentInputError)
     async def handle_agent_input_error(

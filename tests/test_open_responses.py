@@ -14,6 +14,7 @@ from app.api.open_responses_schemas import (
     OpenResponsesErrorEnvelope,
     OpenResponsesResponse,
 )
+from app.models.generation import TextGenerationRequest
 from app.models.retrieval import SearchResult, VisibilityPolicy
 from app.services.profile_service import ProfileService
 
@@ -87,6 +88,17 @@ class RecordingProfileService(ProfileService):
         return super().search(query, visibility)
 
 
+class RecordingTextGenerator:
+    """Deterministic test double; no provider calls or profile access."""
+
+    def __init__(self) -> None:
+        self.requests: list[TextGenerationRequest] = []
+
+    def generate(self, request: TextGenerationRequest) -> str:
+        self.requests.append(request)
+        return "grounded: " + ",".join(item.entity_id for item in request.evidence)
+
+
 class OpenResponsesApiTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -96,8 +108,12 @@ class OpenResponsesApiTests(unittest.TestCase):
             json.dumps(profile_fixture()), encoding="utf-8"
         )
         self.profile_service = RecordingProfileService(self.profile_path)
+        self.text_generator = RecordingTextGenerator()
         self.client = TestClient(
-            create_app(agent_core=AgentCore(profile_service=self.profile_service))
+            create_app(
+                agent_core=AgentCore(profile_service=self.profile_service),
+                text_generator=self.text_generator,
+            )
         )
 
     def post(self, payload: object):
@@ -267,6 +283,7 @@ class OpenResponsesApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("internal-only root term", response.text)
+        self.assertEqual(self.text_generator.requests, [])
 
     def test_do_not_expose_is_not_exposed(self) -> None:
         response = self.post(
@@ -274,6 +291,7 @@ class OpenResponsesApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("hidden-only root term", response.text)
+        self.assertEqual(self.text_generator.requests, [])
 
     def test_nested_restricted_content_is_not_exposed(self) -> None:
         for query in ("nested internal-only phrase", "nested private-only phrase"):
@@ -284,6 +302,7 @@ class OpenResponsesApiTests(unittest.TestCase):
                     response.json()["output"][0]["content"][0]["text"],
                     INSUFFICIENT_EVIDENCE_TEXT,
                 )
+                self.assertEqual(self.text_generator.requests, [])
 
     def test_response_with_evidence_is_deterministic_and_grounded(self) -> None:
         response = self.post(
@@ -303,6 +322,7 @@ class OpenResponsesApiTests(unittest.TestCase):
             response.json()["output"][0]["content"][0]["text"],
             INSUFFICIENT_EVIDENCE_TEXT,
         )
+        self.assertEqual(self.text_generator.requests, [])
 
     def test_response_object_is_response(self) -> None:
         self.assertEqual(

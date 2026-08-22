@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from app.agent.core import AgentCore, AgentInputError
-from app.api.open_responses_formatter import DeterministicResponseFormatter
+from app.api.open_responses_formatter import INSUFFICIENT_EVIDENCE_TEXT
 from app.api.open_responses_schemas import (
     OpenResponsesError,
     OpenResponsesErrorEnvelope,
@@ -19,6 +19,10 @@ from app.api.open_responses_schemas import (
     OpenResponsesOutputText,
     DEFAULT_MODEL_IDENTIFIER,
 )
+from app.llm.errors import EmptyProviderResponseError, TextGenerationError
+from app.llm.openai_provider import OpenAITextGenerator
+from app.models.agent import PreparedAgentTurn
+from app.models.generation import ConversationMessage, TextGenerationRequest, TextGenerator
 
 
 SUPPORTED_REQUEST_FIELDS = {"model", "input", "stream", "metadata"}
@@ -83,16 +87,19 @@ class OpenResponsesAdapter:
     def __init__(
         self,
         agent_core: AgentCore,
-        formatter: DeterministicResponseFormatter | None = None,
+        text_generator: TextGenerator | None = None,
     ) -> None:
         self._agent_core = agent_core
-        self._formatter = formatter or DeterministicResponseFormatter()
+        self._text_generator = text_generator or OpenAITextGenerator()
 
     def create_response(self, payload: object) -> tuple[dict[str, object], int]:
         try:
             request = self._validate_request(payload)
-            current_user_query = self._extract_current_user_query(request.input)
+            current_user_query, transcript = self._extract_generation_context(
+                request.input
+            )
             turn = self._agent_core.prepare(current_user_query)
+            response_text = self._generate_text(turn, transcript)
         except OpenResponsesRequestError as exc:
             return self.error_response(
                 message=exc.message,
@@ -105,6 +112,12 @@ class OpenResponsesAdapter:
                 param="input",
                 code="invalid_input",
             ), 400
+        except TextGenerationError as exc:
+            return self.error_response(
+                message=exc.public_message,
+                param="input",
+                code=exc.code,
+            ), exc.status_code
 
         created_at = int(time.time())
         completed_at = max(created_at, int(time.time()))
@@ -112,7 +125,7 @@ class OpenResponsesAdapter:
             id=f"msg_{uuid.uuid4().hex}",
             content=[
                 OpenResponsesOutputText(
-                    text=self._formatter.format(turn),
+                    text=response_text,
                 )
             ],
         )
@@ -129,6 +142,26 @@ class OpenResponsesAdapter:
         serialized["error"] = None
         serialized["usage"] = None
         return serialized, 200
+
+    def _generate_text(
+        self,
+        turn: PreparedAgentTurn,
+        transcript: tuple[ConversationMessage, ...],
+    ) -> str:
+        if turn.status == "insufficient_evidence":
+            return INSUFFICIENT_EVIDENCE_TEXT
+
+        text = self._text_generator.generate(
+            TextGenerationRequest(
+                query=turn.query,
+                transcript=transcript,
+                evidence=turn.evidence,
+                policy=turn.policy,
+            )
+        )
+        if not isinstance(text, str) or not text.strip():
+            raise EmptyProviderResponseError()
+        return text
 
     @staticmethod
     def error_response(*, message: str, param: str, code: str) -> dict[str, object]:
@@ -217,7 +250,7 @@ class OpenResponsesAdapter:
 
         if request.stream:
             raise OpenResponsesRequestError(
-                "Streaming is not supported in Phase 5.",
+                "Streaming is not supported in this synchronous subset.",
                 param="stream",
                 code="streaming_not_supported",
             )
@@ -227,6 +260,13 @@ class OpenResponsesAdapter:
     def _extract_current_user_query(
         cls, input_value: str | list[dict[str, object]]
     ) -> str:
+        query, _ = cls._extract_generation_context(input_value)
+        return query
+
+    @classmethod
+    def _extract_generation_context(
+        cls, input_value: str | list[dict[str, object]]
+    ) -> tuple[str, tuple[ConversationMessage, ...]]:
         if isinstance(input_value, str):
             if not input_value.strip():
                 raise OpenResponsesRequestError(
@@ -234,7 +274,7 @@ class OpenResponsesAdapter:
                     param="input",
                     code="invalid_input",
                 )
-            return input_value
+            return input_value, ()
 
         if not input_value:
             raise OpenResponsesRequestError(
@@ -255,7 +295,10 @@ class OpenResponsesAdapter:
                 code="invalid_input",
             )
         # Assistant history is validated structural data, never AgentCore input.
-        return user_messages[-1]
+        return user_messages[-1], tuple(
+            ConversationMessage(role=message.role, text=message.text)
+            for message in transcript
+        )
 
     @classmethod
     def _parse_message(
