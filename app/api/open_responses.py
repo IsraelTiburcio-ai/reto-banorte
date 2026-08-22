@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import unicodedata
 import uuid
 from dataclasses import dataclass, replace
 
@@ -79,6 +80,41 @@ class TranscriptMessage:
 
     role: str
     text: str
+
+
+_FOLLOWUP_DEMONSTRATIVES = frozenset(
+    {
+        "ese",
+        "esa",
+        "eso",
+        "esos",
+        "esas",
+        "ello",
+        "ellos",
+        "ellas",
+        "estos",
+        "estas",
+        "aquel",
+        "aquella",
+        "aquellos",
+        "aquellas",
+    }
+)
+_FOLLOWUP_WHICH_TERMS = frozenset({"cual", "cuales"})
+_FOLLOWUP_ANAPHORIC_VERBS = frozenset(
+    {
+        "usaba",
+        "usabas",
+        "utilizaba",
+        "utilizabas",
+        "empleaba",
+        "empleabas",
+        "gano",
+        "ganaron",
+        "fue",
+        "fueron",
+    }
+)
 
 
 class OpenResponsesRequestError(ValueError):
@@ -228,7 +264,7 @@ class OpenResponsesAdapter:
             message.text
             for message in transcript[:-1]
             if message.role == "user"
-        ]
+        ][-3:]
         if not prior_user_text:
             return turn
 
@@ -242,14 +278,25 @@ class OpenResponsesAdapter:
 
     @staticmethod
     def _is_context_dependent_followup(query: str) -> bool:
-        normalized = re.sub(r"[^\w]+", " ", query.casefold()).split()
+        decomposed = unicodedata.normalize("NFKD", query)
+        without_accents = "".join(
+            character
+            for character in decomposed
+            if not unicodedata.combining(character)
+        )
+        normalized = re.sub(r"[^\w]+", " ", without_accents.casefold()).split()
         tokens = set(normalized)
-        compact = " ".join(normalized)
-        return (
-            "para que" in compact
-            or "utilizaba" in tokens
-            or "usabas" in tokens
-            or ("cual" in tokens and bool(tokens & {"esos", "esas", "ello"}))
+        which_terms = tokens & _FOLLOWUP_WHICH_TERMS
+        has_demonstrative = bool(tokens & _FOLLOWUP_DEMONSTRATIVES)
+        has_anaphoric_verb = bool(tokens & _FOLLOWUP_ANAPHORIC_VERBS)
+        return bool(
+            has_demonstrative
+            or (which_terms and ("de" in tokens or ("y" in tokens and has_anaphoric_verb)))
+            or (
+                {"para", "que"} <= tokens
+                and bool(tokens & {"lo", "la", "los", "las"})
+                and has_anaphoric_verb
+            )
         )
 
     @staticmethod

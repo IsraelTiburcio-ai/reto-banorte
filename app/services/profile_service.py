@@ -204,9 +204,23 @@ class ProfileService:
         "el",
         "en",
         "es",
+        "ese",
+        "esa",
+        "eso",
+        "esos",
+        "esas",
+        "ello",
+        "ellos",
+        "ellas",
+        "estos",
+        "estas",
         "experience",
         "experiencia",
         "for",
+        "fue",
+        "fueron",
+        "gano",
+        "ganaron",
         "ha",
         "has",
         "have",
@@ -219,6 +233,7 @@ class ProfileService:
         "los",
         "me",
         "of",
+        "para",
         "por",
         "please",
         "puede",
@@ -402,6 +417,18 @@ class ProfileService:
             return "academic_project_overview"
 
         if (
+            raw_terms.intersection(
+                {"proyecto", "proyectos", "project", "projects"}
+            )
+            and raw_terms.intersection({"profesional", "profesionales", "prixz"})
+            and raw_terms
+            <= cls._PROJECT_OVERVIEW_TERMS
+            | common_terms
+            | {"profesional", "prixz", "which", "what"}
+        ):
+            return "professional_project_overview"
+
+        if (
             raw_terms.intersection(cls._PROJECT_OVERVIEW_TERMS)
             and raw_terms
             <= cls._PROJECT_OVERVIEW_TERMS | common_terms | {"which", "what"}
@@ -461,6 +488,12 @@ class ProfileService:
                 key
                 for key, entity in visible_entities.items()
                 if key[0] == "project" and self._is_academic_project(entity)
+            ]
+        elif intent == "professional_project_overview":
+            ordered_keys = [
+                key
+                for key, entity in visible_entities.items()
+                if key[0] == "project" and not self._is_academic_project(entity)
             ]
         elif intent == "career_overview":
             preferred_types = [

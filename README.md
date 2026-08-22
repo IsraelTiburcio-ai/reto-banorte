@@ -239,9 +239,12 @@ Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
 intended; generated-answer cases are reported for manual review.
 
 The lexical retriever also has bounded deterministic overview modes for
-identity, career, and project questions in Spanish and English. They return
-ordered public evidence copies only; they do not infer dates, ownership,
-relevance, skills, or technologies that are not present in the profile.
+identity, career, academic-project, professional-project, and project
+questions in Spanish and English. Referential follow-ups may use the last few
+user messages from the current transcript to enrich retrieval. Assistant text
+is never treated as evidence or instructions. Results remain ordered public
+evidence copies only; they do not infer dates, ownership, relevance, skills, or
+technologies that are not present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
 
 Phase 10 does not add conversation memory, provider streaming, new

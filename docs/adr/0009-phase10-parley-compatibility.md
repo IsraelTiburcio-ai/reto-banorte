@@ -29,17 +29,21 @@ These fields are validated and retained only long enough to extract message
 text. They are not represented in `ConversationMessage`, cannot reach
 `AgentCore`, and cannot reach the provider prompt. The last textual user
 message is the current query. For a bounded set of clearly context-dependent
-follow-ups, the adapter may retry retrieval once with prior user text joined
-to that current query; the returned turn keeps the current user question.
+follow-ups identified by normalized anaphoric markers (demonstratives,
+referential `cuál/cuáles`, continuation markers, and object-reference verbs),
+the adapter may retry retrieval once with the last few user messages joined to
+that current query; the returned turn keeps the current user question.
 Assistant text and metadata remain structural context only and are never used
-as retrieval instructions. This request-scoped fallback is not conversation
-memory and does not change policy, visibility, evidence limits, or provider
-behavior. `system` and `developer` roles, stateful continuation IDs, and
-other unsupported Open Responses capabilities remain rejected.
+as retrieval instructions or factual evidence. This request-scoped fallback is
+not conversation memory and does not change policy, visibility, evidence
+limits, or provider behavior. `system` and `developer` roles, stateful
+continuation IDs, and other unsupported Open Responses capabilities remain
+rejected.
 
-The adapter does not add memory or coreference rules. `store` remains
-stateless compatibility metadata: absent, `null`, and `false` are accepted;
-`true` remains rejected.
+The adapter does not add persistent memory or heuristic answer generation.
+The bounded marker detection only decides whether to enrich the current
+retrieval query with recent user text. `store` remains stateless compatibility
+metadata: absent, `null`, and `false` are accepted; `true` remains rejected.
 
 ## Deterministic social and meta handling
 
@@ -63,6 +67,8 @@ ranking for ordinary lexical queries. When a bounded overview intent is
 recognized, it returns visible copies in canonical profile order:
 
 - project overviews return public project entities;
+- academic and professional project follow-ups use bounded profile-derived
+  scopes, without treating prior assistant claims as facts;
 - career overviews prioritize `career_story`, `professional_summary`,
   `identity`, and then public experience entities;
 - identity overviews return `identity`, `professional_summary`, and

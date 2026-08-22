@@ -153,6 +153,21 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertTrue(all(item.entity_type == "project" for item in results))
         self.assertNotIn("docker", result_ids)
 
+    def test_referential_academic_project_query_keeps_academic_distinction(self) -> None:
+        result_ids = self.ids_for(
+            "Cuéntame sobre sus proyectos ¿Cuál de esos fue académico?"
+        )
+        self.assertTrue({"fi-fan", "apapacho", "bimbo-run", "mba-yo"} <= result_ids)
+        self.assertNotIn("docker", result_ids)
+
+    def test_referential_professional_project_query_excludes_academic_projects(self) -> None:
+        result_ids = self.ids_for(
+            "Cuéntame de sus proyectos ¿Cuáles de esos fueron profesionales?"
+        )
+        self.assertIn("claudia", result_ids)
+        self.assertNotIn("mba-yo", result_ids)
+        self.assertNotIn("fi-fan", result_ids)
+
     def test_project_overview_queries_return_projects_only(self) -> None:
         queries = (
             "¿Cuáles son los proyectos más relevantes de Israel?",
