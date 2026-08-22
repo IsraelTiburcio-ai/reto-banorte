@@ -10,6 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN_SECRET_NAMES = frozenset({"OPENAI_API_KEY", "AGENT_API_KEY"})
+PARSER_DIRECTIVE_PATTERN = re.compile(
+    r"^\s*#\s*(syntax|escape|check)\s*=",
+    re.IGNORECASE,
+)
 Instruction = tuple[str, str]
 
 
@@ -24,12 +28,12 @@ def parse_dockerfile_instructions(text: str) -> list[Instruction]:
     instructions: list[Instruction] = []
     logical_line = ""
     for raw_line in text.splitlines():
+        if PARSER_DIRECTIVE_PATTERN.match(raw_line):
+            raise AssertionError("Dockerfile parser directives are not approved")
         line = raw_line.strip()
         if not line:
             continue
         if line.startswith("#"):
-            if line.lower().startswith(("# syntax=", "# escape=", "# check=")):
-                raise AssertionError("Dockerfile parser directives are not approved")
             continue
 
         if line.endswith("\\"):
@@ -545,6 +549,28 @@ class ContainerizationContractTests(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             validate_container_contract(mutated, self.dockerignore_lines)
+
+    def test_parser_directive_whitespace_variants_are_rejected(self) -> None:
+        variants = (
+            "#escape=" + chr(96),
+            "# escape=" + chr(96),
+            "# escape = " + chr(96),
+            "#\tescape=" + chr(96),
+            "#syntax=docker/dockerfile:1",
+            "# syntax = docker/dockerfile:1",
+            "#check=error=true",
+            "# check = error=true",
+            "#ESCAPE=" + chr(96),
+            " \t#escape=" + chr(96),
+        )
+        self.assertEqual(len(variants), 10)
+        for variant in variants:
+            with self.subTest(variant=variant):
+                with self.assertRaises(AssertionError):
+                    validate_container_contract(
+                        variant + "\n" + self.dockerfile,
+                        self.dockerignore_lines,
+                    )
 
     def test_later_root_user_fails_effective_user_check(self) -> None:
         mutated = self.dockerfile + "\nUSER root\n"
