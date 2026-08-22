@@ -131,11 +131,28 @@ class OpenResponsesApiTests(unittest.TestCase):
             self.assertEqual(parsed.error.param, param)
         return body
 
+    def parse_sse(self, response) -> tuple[list[tuple[str, dict[str, object]]], str]:
+        frames = response.text.split("\n\n")
+        self.assertEqual(frames[-1], "")
+        self.assertEqual(frames[-2], "data: [DONE]")
+        events: list[tuple[str, dict[str, object]]] = []
+        for frame in frames[:-2]:
+            lines = frame.splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(lines[0].startswith("event: "))
+            self.assertTrue(lines[1].startswith("data: "))
+            event_name = lines[0][len("event: ") :]
+            payload = json.loads(lines[1][len("data: ") :])
+            self.assertIsInstance(payload, dict)
+            events.append((event_name, payload))
+        return events, frames[-2]
+
     def test_string_input_valid(self) -> None:
         response = self.post(
             {"model": "banorte-cv-agent", "input": "public evidence"}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("application/json"))
         self.assertEqual(response.json()["model"], "banorte-cv-agent")
 
     def test_store_absent_is_accepted(self) -> None:
@@ -444,12 +461,132 @@ class OpenResponsesApiTests(unittest.TestCase):
             "input",
         )
 
-    def test_stream_true_is_rejected(self) -> None:
-        self.assert_error(
-            self.post({"model": "m", "input": "unknown", "stream": True}),
-            "streaming_not_supported",
-            "stream",
+    def test_stream_false_and_null_are_sync_json(self) -> None:
+        for stream in (False, None):
+            with self.subTest(stream=stream):
+                response = self.post(
+                    {"model": "m", "input": "unknown", "stream": stream}
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(
+                    response.headers["content-type"].startswith("application/json")
+                )
+
+    def test_stream_true_matches_reference_sse_sequence(self) -> None:
+        response = self.post(
+            {"model": "m", "input": "public evidence", "stream": True}
         )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["content-type"], "text/event-stream; charset=utf-8"
+        )
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        events, terminal = self.parse_sse(response)
+        event_names = [event_name for event_name, _ in events]
+        self.assertEqual(
+            event_names,
+            [
+                "response.created",
+                "response.in_progress",
+                "response.output_item.added",
+                "response.content_part.added",
+                "response.output_text.delta",
+                "response.output_text.done",
+                "response.content_part.done",
+                "response.output_item.done",
+                "response.completed",
+            ],
+        )
+        self.assertEqual(terminal, "data: [DONE]")
+        self.assertEqual(
+            [payload["sequence_number"] for _, payload in events],
+            list(range(len(events))),
+        )
+        for event_name, payload in events:
+            self.assertEqual(payload["type"], event_name)
+
+        created = events[0][1]["response"]
+        in_progress = events[1][1]["response"]
+        self.assertEqual(created["status"], "queued")
+        self.assertEqual(created["output"], [])
+        self.assertEqual(in_progress["status"], "in_progress")
+        self.assertEqual(in_progress["output"], [])
+
+        response_id = created["id"]
+        message_id = events[2][1]["item"]["id"]
+        self.assertTrue(response_id.startswith("resp_"))
+        self.assertTrue(message_id.startswith("msg_"))
+        for _, payload in events:
+            if "response" in payload:
+                self.assertEqual(payload["response"]["id"], response_id)
+            if "item_id" in payload:
+                self.assertEqual(payload["item_id"], message_id)
+            if "item" in payload:
+                self.assertEqual(payload["item"]["id"], message_id)
+
+        added_item = events[2][1]
+        self.assertEqual(added_item["output_index"], 0)
+        self.assertEqual(added_item["item"]["type"], "message")
+        self.assertEqual(added_item["item"]["status"], "in_progress")
+        self.assertEqual(added_item["item"]["role"], "assistant")
+        self.assertEqual(added_item["item"]["content"], [])
+
+        added_part = events[3][1]
+        self.assertEqual(added_part["output_index"], 0)
+        self.assertEqual(added_part["content_index"], 0)
+        self.assertEqual(added_part["part"]["text"], "")
+
+        delta = events[4][1]
+        text = delta["delta"]
+        self.assertEqual(delta["output_index"], 0)
+        self.assertEqual(delta["content_index"], 0)
+        self.assertEqual(text, "grounded: public-project")
+        self.assertEqual(events[5][1]["text"], text)
+        self.assertEqual(events[6][1]["part"]["text"], text)
+        self.assertEqual(events[7][1]["item"]["content"][0]["text"], text)
+
+        completed = events[8][1]["response"]
+        parsed = OpenResponsesResponse.model_validate(completed)
+        self.assertEqual(parsed.id, response_id)
+        self.assertEqual(parsed.status, "completed")
+        self.assertEqual(parsed.model, "m")
+        self.assertGreaterEqual(parsed.completed_at, parsed.created_at)
+        self.assertEqual(completed["output"][0]["id"], message_id)
+        self.assertEqual(completed["output"][0]["content"][0]["text"], text)
+
+    def test_stream_true_with_store_false_is_sse(self) -> None:
+        response = self.post(
+            {
+                "model": "m",
+                "input": "public evidence",
+                "store": False,
+                "stream": True,
+            }
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("text/event-stream"))
+
+    def test_stream_true_insufficient_evidence_is_sse_without_provider(self) -> None:
+        response = self.post(
+            {"model": "m", "input": "unknown topic", "stream": True}
+        )
+        self.assertEqual(response.status_code, 200)
+        events, _ = self.parse_sse(response)
+        self.assertEqual(
+            events[4][1]["delta"],
+            INSUFFICIENT_EVIDENCE_TEXT,
+        )
+        self.assertEqual(self.text_generator.requests, [])
+
+    def test_invalid_stream_types_are_rejected_without_coercion(self) -> None:
+        for stream in (0, 1, "true", "false", [], {}):
+            with self.subTest(stream=stream):
+                self.assert_error(
+                    self.post({"model": "m", "input": "x", "stream": stream}),
+                    "invalid_input",
+                    "stream",
+                )
 
     def test_system_role_is_rejected(self) -> None:
         self.assert_error(
@@ -582,7 +719,7 @@ class OpenResponsesApiTests(unittest.TestCase):
     def test_error_codes_are_stable(self) -> None:
         cases = (
             ({"model": "m"}, "missing_input"),
-            ({"model": "m", "input": "x", "stream": True}, "streaming_not_supported"),
+            ({"model": "m", "input": "x", "stream": "true"}, "invalid_input"),
         )
         for payload, code in cases:
             with self.subTest(code=code):

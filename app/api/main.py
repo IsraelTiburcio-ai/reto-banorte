@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.agent.core import AgentCore, AgentInputError
 from app.api.middleware import SecurityObservabilityMiddleware
@@ -82,7 +82,7 @@ def create_app(
         return AgentPrepareResponse.from_turn(turn)
 
     @app.post("/v1/responses")
-    async def create_open_response(request: Request) -> JSONResponse:
+    async def create_open_response(request: Request) -> Response:
         adapter: OpenResponsesAdapter = app.state.open_responses_adapter
         try:
             raw_body = await request.body()
@@ -98,7 +98,19 @@ def create_app(
                 ),
             )
 
-        body, status_code = adapter.create_response(payload)
+        if adapter.is_stream_requested(payload):
+            body, status_code = adapter.create_stream_response(payload)
+            if status_code == 200:
+                if not isinstance(body, str):
+                    raise RuntimeError("The streaming response body is invalid.")
+                return Response(
+                    content=body,
+                    status_code=status_code,
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-store"},
+                )
+        else:
+            body, status_code = adapter.create_response(payload)
         return JSONResponse(status_code=status_code, content=body)
 
     app.add_middleware(

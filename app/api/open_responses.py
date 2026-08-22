@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -95,7 +96,7 @@ class OpenResponsesRequestError(ValueError):
 
 
 class OpenResponsesAdapter:
-    """Translate supported requests to ``AgentCore`` and back to local JSON."""
+    """Translate supported requests to ``AgentCore`` and local response transports."""
 
     def __init__(
         self,
@@ -112,8 +113,31 @@ class OpenResponsesAdapter:
         return self._agent_core
 
     def create_response(self, payload: object) -> tuple[dict[str, object], int]:
+        """Create the synchronous JSON response used by the local contract."""
+
+        return self._create_response(payload, allow_stream=False)
+
+    def create_stream_response(
+        self, payload: object
+    ) -> tuple[dict[str, object] | str, int]:
+        """Create a complete response and serialize it as Open Responses SSE."""
+
+        body, status_code = self._create_response(payload, allow_stream=True)
+        if status_code != 200:
+            return body, status_code
+        return self._serialize_sse(body), status_code
+
+    @staticmethod
+    def is_stream_requested(payload: object) -> bool:
+        """Select SSE only for the exact JSON boolean ``true``."""
+
+        return isinstance(payload, dict) and payload.get("stream") is True
+
+    def _create_response(
+        self, payload: object, *, allow_stream: bool
+    ) -> tuple[dict[str, object], int]:
         try:
-            request = self._validate_request(payload)
+            request = self._validate_request(payload, allow_stream=allow_stream)
             current_user_query, transcript, input_chars = self._extract_generation_context(
                 request.input
             )
@@ -172,6 +196,138 @@ class OpenResponsesAdapter:
         serialized["error"] = None
         serialized["usage"] = None
         return serialized, 200
+
+    @staticmethod
+    def _serialize_sse(response: dict[str, object]) -> str:
+        output = response["output"]
+        if not isinstance(output, list) or len(output) != 1:
+            raise ValueError("The local response must contain one output message.")
+        message = output[0]
+        if not isinstance(message, dict):
+            raise ValueError("The local response output message is invalid.")
+        message_id = message.get("id")
+        content = message.get("content")
+        if (
+            not isinstance(message_id, str)
+            or not isinstance(content, list)
+            or len(content) != 1
+        ):
+            raise ValueError("The local response output text is invalid.")
+        output_text = content[0]
+        if not isinstance(output_text, dict):
+            raise ValueError("The local response output text is invalid.")
+        text = output_text.get("text")
+        if not isinstance(text, str):
+            raise ValueError("The local response output text is invalid.")
+
+        response_id = response.get("id")
+        if not isinstance(response_id, str):
+            raise ValueError("The local response id is invalid.")
+
+        response_base = {
+            key: value
+            for key, value in response.items()
+            if key not in {"completed_at", "status", "output"}
+        }
+        empty_message: list[dict[str, object]] = []
+        message_in_progress = {
+            "id": message_id,
+            "type": "message",
+            "status": "in_progress",
+            "content": [],
+            "role": "assistant",
+        }
+        empty_part = {
+            "type": "output_text",
+            "annotations": [],
+            "text": "",
+        }
+        final_part = dict(output_text)
+        final_message = {
+            "id": message_id,
+            "type": "message",
+            "status": "completed",
+            "content": [final_part],
+            "role": "assistant",
+        }
+
+        def response_snapshot(
+            status: str, response_output: list[dict[str, object]]
+        ) -> dict[str, object]:
+            snapshot = dict(response_base)
+            snapshot["status"] = status
+            snapshot["output"] = response_output
+            return snapshot
+
+        events: list[dict[str, object]] = []
+
+        def add_event(event_type: str, **fields: object) -> None:
+            events.append(
+                {
+                    "type": event_type,
+                    "sequence_number": len(events),
+                    **fields,
+                }
+            )
+
+        add_event(
+            "response.created",
+            response=response_snapshot("queued", empty_message),
+        )
+        add_event(
+            "response.in_progress",
+            response=response_snapshot("in_progress", empty_message),
+        )
+        add_event(
+            "response.output_item.added",
+            output_index=0,
+            item=message_in_progress,
+        )
+        add_event(
+            "response.content_part.added",
+            item_id=message_id,
+            output_index=0,
+            content_index=0,
+            part=empty_part,
+        )
+        add_event(
+            "response.output_text.delta",
+            item_id=message_id,
+            output_index=0,
+            content_index=0,
+            delta=text,
+        )
+        add_event(
+            "response.output_text.done",
+            item_id=message_id,
+            output_index=0,
+            content_index=0,
+            text=text,
+        )
+        add_event(
+            "response.content_part.done",
+            item_id=message_id,
+            output_index=0,
+            content_index=0,
+            part=final_part,
+        )
+        add_event(
+            "response.output_item.done",
+            output_index=0,
+            item=final_message,
+        )
+        add_event("response.completed", response=response)
+
+        frames = [
+            "event: {event_type}\n"
+            "data: {payload}\n\n".format(
+                event_type=event["type"],
+                payload=json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+            )
+            for event in events
+        ]
+        frames.append("data: [DONE]\n\n")
+        return "".join(frames)
 
     def _generate_text(
         self,
@@ -294,7 +450,9 @@ class OpenResponsesAdapter:
         ).model_dump(mode="json")
 
     @classmethod
-    def _validate_request(cls, payload: object) -> OpenResponsesRequest:
+    def _validate_request(
+        cls, payload: object, *, allow_stream: bool = False
+    ) -> OpenResponsesRequest:
         if not isinstance(payload, dict):
             raise OpenResponsesRequestError(
                 "Request body must be a JSON object.",
@@ -378,7 +536,7 @@ class OpenResponsesAdapter:
                 code="invalid_input",
             ) from exc
 
-        if request.stream:
+        if request.stream and not allow_stream:
             raise OpenResponsesRequestError(
                 "Streaming is not supported in this synchronous subset.",
                 param="stream",

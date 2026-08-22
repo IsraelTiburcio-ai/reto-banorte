@@ -38,7 +38,7 @@ Flujo actual:
 
 `ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
 
-El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto grounded solo cuando existe evidencia; sin evidencia conserva el fallback fijo y evita la llamada al proveedor. Rechaza `system`/`developer`, streaming, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto grounded solo cuando existe evidencia; sin evidencia conserva el fallback fijo y evita la llamada al proveedor. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
 
 ## Open Responses subset
 
@@ -48,7 +48,7 @@ curl -X POST http://localhost:8000/v1/responses \
   -d '{"model":"banorte-cv-agent","input":"¿Qué experiencia tiene Israel con MCP?"}'
 ```
 
-El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto y `metadata` se conserva únicamente como dato de transporte. El endpoint no mantiene conversaciones: acepta `store` ausente, `null` o `false` como formas stateless, pero rechaza `store=true`; también rechaza `previous_response_id`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
+El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto: `null` y `false` conservan JSON, mientras `true` usa `text/event-stream; charset=utf-8`, `Cache-Control: no-store` y la secuencia SSE de ciclo de vida de Open Responses. El endpoint no mantiene conversaciones: acepta `store` ausente, `null` o `false` como formas stateless, pero rechaza `store=true`; también rechaza `previous_response_id`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
 
 ## Phase 6 — LLM integration
 
@@ -61,7 +61,7 @@ export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
 
 `model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
 
-El generador usa la Responses API oficial con `store=false`, sin tools, streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
+El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
 
 ## Phase 7 — Evals
 

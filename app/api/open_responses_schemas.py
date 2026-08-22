@@ -13,11 +13,11 @@ DEFAULT_MODEL_IDENTIFIER = "banorte-cv-agent"
 
 
 class OpenResponsesRequest(StrictApiModel):
-    """Request envelope for the synchronous, textual local subset."""
+    """Request envelope for the synchronous textual/SSE local subset."""
 
     model: StrictStr | None = None
     input: StrictStr | list[dict[str, object]]
-    stream: StrictBool = False
+    stream: StrictBool | None = False
     store: StrictBool | None = None
     metadata: dict[StrictStr, StrictStr] | None = None
 

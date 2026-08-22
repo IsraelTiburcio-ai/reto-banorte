@@ -223,6 +223,15 @@ class SecurityObservabilityTests(unittest.TestCase):
                 ).status_code,
                 200,
             )
+            stream_response = client.post(
+                "/v1/responses",
+                json={"input": "unknown topic", "stream": True},
+                headers={"Authorization": "Bearer agent-key-placeholder"},
+            )
+            self.assertEqual(stream_response.status_code, 200)
+            self.assertTrue(
+                stream_response.headers["content-type"].startswith("text/event-stream")
+            )
             self.assertEqual(
                 client.post(
                     "/agent/prepare",
