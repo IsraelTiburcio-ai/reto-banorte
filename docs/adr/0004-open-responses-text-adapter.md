@@ -71,8 +71,9 @@ stateful continuation, and streaming semantic events. This subset intentionally:
 - rejects `stream=true` rather than emitting SSE;
 - rejects images, files, audio, video, function/tool items and tool options;
 - rejects `system` and `developer` roles;
-- rejects `previous_response_id`, `store`, background execution, compaction,
-  and visibility-related extensions;
+- rejects `previous_response_id`, `store=true`, background execution,
+  compaction, and visibility-related extensions; absent, `null`, and `false`
+  `store` values are accepted only as stateless transport compatibility;
 - returns `usage: null` because no model or token accounting exists;
 - uses a deterministic formatter instead of generated assistant text.
 

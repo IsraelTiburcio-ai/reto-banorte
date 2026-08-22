@@ -31,7 +31,7 @@ from app.models.agent import PreparedAgentTurn
 from app.models.generation import ConversationMessage, TextGenerationRequest, TextGenerator
 
 
-SUPPORTED_REQUEST_FIELDS = {"model", "input", "stream", "metadata"}
+SUPPORTED_REQUEST_FIELDS = {"model", "input", "stream", "store", "metadata"}
 UNSUPPORTED_REQUEST_FIELDS = {
     "background",
     "compaction",
@@ -47,7 +47,6 @@ UNSUPPORTED_REQUEST_FIELDS = {
     "reasoning",
     "safety_identifier",
     "service_tier",
-    "store",
     "temperature",
     "text",
     "tools",
@@ -367,6 +366,12 @@ class OpenResponsesAdapter:
                     param="metadata",
                     code="invalid_input",
                 ) from exc
+            if "store" in locations:
+                raise OpenResponsesRequestError(
+                    "Store must be a boolean or null.",
+                    param="store",
+                    code="invalid_input",
+                ) from exc
             raise OpenResponsesRequestError(
                 "Request fields have invalid types.",
                 param=next(iter(locations), "input"),
@@ -378,6 +383,13 @@ class OpenResponsesAdapter:
                 "Streaming is not supported in this synchronous subset.",
                 param="stream",
                 code="streaming_not_supported",
+            )
+        if request.store is True:
+            raise OpenResponsesRequestError(
+                "Stateful storage is not supported; this agent is stateless. "
+                "Use store=false or omit the field.",
+                param="store",
+                code="unsupported_feature",
             )
         return request
 

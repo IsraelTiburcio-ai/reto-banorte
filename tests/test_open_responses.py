@@ -138,6 +138,25 @@ class OpenResponsesApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["model"], "banorte-cv-agent")
 
+    def test_store_absent_is_accepted(self) -> None:
+        response = self.post({"model": "banorte-cv-agent", "input": "MCP"})
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_store_false_is_accepted(self) -> None:
+        response = self.post(
+            {"model": "banorte-cv-agent", "input": "MCP", "store": False}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_store_null_is_accepted(self) -> None:
+        response = self.post(
+            {"model": "banorte-cv-agent", "input": "MCP", "store": None}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
     def test_user_message_input_valid(self) -> None:
         response = self.post(
             {
@@ -514,6 +533,15 @@ class OpenResponsesApiTests(unittest.TestCase):
             "unsupported_feature",
             "store",
         )
+
+    def test_invalid_store_type_is_rejected(self) -> None:
+        for store in ("false", 1):
+            with self.subTest(store=store):
+                self.assert_error(
+                    self.post({"model": "m", "input": "x", "store": store}),
+                    "invalid_input",
+                    "store",
+                )
 
     def test_background_is_rejected(self) -> None:
         self.assert_error(

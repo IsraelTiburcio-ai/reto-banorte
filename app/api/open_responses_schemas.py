@@ -18,6 +18,7 @@ class OpenResponsesRequest(StrictApiModel):
     model: StrictStr | None = None
     input: StrictStr | list[dict[str, object]]
     stream: StrictBool = False
+    store: StrictBool | None = None
     metadata: dict[StrictStr, StrictStr] | None = None
 
     @field_validator("model")
