@@ -81,6 +81,102 @@ def _strip_shell_comment(command: str) -> str:
     return "".join(result).rstrip()
 
 
+def _split_shell_and(command: str) -> list[str]:
+    """Split the strict setup command on && outside quoted strings."""
+
+    segments: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    escaped = False
+    index = 0
+    while index < len(command):
+        character = command[index]
+        if escaped:
+            current.append(character)
+            escaped = False
+            index += 1
+            continue
+        if character == "\\" and quote != "'":
+            current.append(character)
+            escaped = True
+            index += 1
+            continue
+        if quote is not None:
+            current.append(character)
+            if character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            current.append(character)
+            index += 1
+            continue
+        if command.startswith("&&", index):
+            segments.append("".join(current).strip())
+            current = []
+            index += 2
+            continue
+        if character in {";", "|"}:
+            raise AssertionError("strict setup command allows only && separators")
+        current.append(character)
+        index += 1
+    segments.append("".join(current).strip())
+    return segments
+
+
+def _normalize_command(command: str) -> str:
+    return " ".join(command.split())
+
+
+def _replace_instruction_block(text: str, opcode: str, replacement: str) -> str:
+    """Replace one effective instruction, including its continuation lines."""
+
+    lines = text.splitlines()
+    result: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(lines):
+        line = lines[index]
+        if not replaced and line.lstrip().startswith(f"{opcode} "):
+            result.append(replacement)
+            replaced = True
+            while line.rstrip().endswith("\\") and index + 1 < len(lines):
+                index += 1
+                line = lines[index]
+            index += 1
+            continue
+        result.append(line)
+        index += 1
+    _require(replaced, f"mutation target {opcode} was not found")
+    return "\n".join(result) + "\n"
+
+
+def _replace_cmd(text: str, shell_command: str) -> str:
+    return _replace_instruction_block(
+        text,
+        "CMD",
+        "CMD " + json.dumps(["sh", "-c", shell_command]),
+    )
+
+
+def _setup_run_matches(argument: str) -> bool:
+    command = _normalize_command(_strip_shell_comment(argument))
+    try:
+        segments = [_normalize_command(segment) for segment in _split_shell_and(command)]
+    except AssertionError:
+        return False
+    expected = [
+        "python -m pip install --no-cache-dir --target /app /tmp/build",
+        "rm -rf /tmp/build",
+        "groupadd --system app",
+        "useradd --system --gid app --no-create-home --home-dir /nonexistent app",
+        "mkdir -p /app/data",
+        "chown -R app:app /app",
+    ]
+    return segments == expected
+
+
 def _copy_pairs(instructions: list[Instruction]) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     for opcode, argument in instructions:
@@ -156,6 +252,31 @@ def _dockerignore_rule_matches(path: str, pattern: str) -> bool:
     return False
 
 
+def _validate_env_ignore_policy(lines: list[str]) -> None:
+    """Allow only the repository's exact .env.example exception."""
+
+    for raw_line in lines:
+        rule = raw_line.strip()
+        if rule.startswith("!") and rule != "!.env.example":
+            raise AssertionError(
+                "only the exact .env.example negation is allowed for env files"
+            )
+
+
+def _validate_data_ignore_policy(lines: list[str]) -> None:
+    """Reject any effective broad rule that could hide the profile directory."""
+
+    for raw_line in lines:
+        rule = raw_line.strip()
+        if not rule or rule.startswith("#") or rule.startswith("!"):
+            continue
+        pattern = rule[1:] if rule.startswith("!") else rule
+        if _dockerignore_rule_matches("data", pattern) or _dockerignore_rule_matches(
+            "data/profile.json", pattern
+        ):
+            raise AssertionError("data/profile.json must not be excluded by a broad rule")
+
+
 def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) -> None:
     instructions = parse_dockerfile_instructions(dockerfile)
     opcodes = [opcode for opcode, _ in instructions]
@@ -166,6 +287,9 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         base_images == ["python:3.11-slim-bookworm"],
         "the effective final stage must be the single expected slim Python image",
     )
+
+    workdirs = [argument.strip() for opcode, argument in instructions if opcode == "WORKDIR"]
+    _require(workdirs == ["/app"], "effective WORKDIR must be /app")
 
     copy_pairs = _copy_pairs(instructions)
     for expected in (
@@ -183,28 +307,10 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
         "Dockerfile must not copy local environment files",
     )
 
-    run_commands = [
-        _strip_shell_comment(argument).strip()
-        for opcode, argument in instructions
-        if opcode == "RUN"
-    ]
+    run_commands = [argument for opcode, argument in instructions if opcode == "RUN"]
     _require(
-        any(
-            "python -m pip install" in command
-            and "--no-cache-dir" in command
-            and "--target /app" in command
-            and "/tmp/build" in command
-            for command in run_commands
-        ),
-        "runtime dependencies must be installed from the temporary project tree",
-    )
-    _require(
-        any("groupadd --system app" in command for command in run_commands),
-        "Dockerfile must create the non-root app group",
-    )
-    _require(
-        any("useradd --system --gid app" in command for command in run_commands),
-        "Dockerfile must create the non-root app user",
+        any(_setup_run_matches(command) for command in run_commands),
+        "Dockerfile must contain the exact ordered runtime setup RUN",
     )
 
     users = [argument.strip() for opcode, argument in instructions if opcode == "USER"]
@@ -228,18 +334,13 @@ def validate_container_contract(dockerfile: str, dockerignore_lines: list[str]) 
     )
     shell_command = _strip_shell_comment(command[2]).strip()
     _require(
-        shell_command.startswith("exec python -m uvicorn "),
-        "CMD must exec Uvicorn as the main process",
+        shell_command
+        == 'exec python -m uvicorn app.api.main:app --host 0.0.0.0 --port "${PORT:-8080}"',
+        "CMD must match the exact application runtime command",
     )
-    _require("--host 0.0.0.0" in shell_command, "CMD must bind to 0.0.0.0")
-    _require(
-        re.search(r'--port\s+"?\$\{PORT:-8080\}"?', shell_command)
-        is not None,
-        "CMD must expand PORT at runtime with default 8080",
-    )
-    _require("'${PORT:-8080}'" not in shell_command, "PORT must not be single-quoted")
-    _require("--reload" not in shell_command, "production CMD must not use --reload")
 
+    _validate_env_ignore_policy(dockerignore_lines)
+    _validate_data_ignore_policy(dockerignore_lines)
     _require(_dockerignore_ignores(".env", dockerignore_lines), ".env must remain ignored")
     _require(
         _dockerignore_ignores(".env.local", dockerignore_lines),
@@ -344,6 +445,87 @@ class ContainerizationContractTests(unittest.TestCase):
                 mutated_rules = self.dockerignore_lines + [mutation]
                 with self.assertRaises(AssertionError):
                     validate_container_contract(self.dockerfile, mutated_rules)
+
+    def test_required_mutation_matrix_is_rejected(self) -> None:
+        expected_cmd = (
+            'exec python -m uvicorn app.api.main:app --host 0.0.0.0 '
+            '--port "${PORT:-8080}"'
+        )
+        mutations = {
+            "run false before pip": self.dockerfile.replace(
+                "RUN python -m pip install", "RUN false && python -m pip install"
+            ),
+            "run echo pip": _replace_instruction_block(
+                self.dockerfile,
+                "RUN",
+                'RUN echo "python -m pip install --no-cache-dir --target /app /tmp/build"',
+            ),
+            "run echo groupadd": _replace_instruction_block(
+                self.dockerfile, "RUN", 'RUN echo "groupadd --system app"'
+            ),
+            "run echo useradd": _replace_instruction_block(
+                self.dockerfile, "RUN", 'RUN echo "useradd --system --gid app app"'
+            ),
+            "wrong module": _replace_cmd(
+                self.dockerfile,
+                expected_cmd.replace("app.api.main:app", "wrong.module:app"),
+            ),
+            "port command injection": _replace_cmd(
+                self.dockerfile,
+                expected_cmd.replace(
+                    '--port "${PORT:-8080}"',
+                    '--port 9999; echo --port "${PORT:-8080}"',
+                ),
+            ),
+            "wrong workdir": self.dockerfile.replace("WORKDIR /app", "WORKDIR /wrong"),
+            "broad env negation": self.dockerignore_lines + ["!**/.env*"],
+            "broad data negation": self.dockerignore_lines + ["**/data"],
+            "profile exclusion": self.dockerignore_lines + ["data/profile.json"],
+            "comment-only copy": self.dockerfile.replace(
+                "COPY app /tmp/build/app", "# COPY app /tmp/build/app"
+            ),
+            "later root user": self.dockerfile + "\nUSER root\n",
+            "literal exec-form port": _replace_instruction_block(
+                self.dockerfile,
+                "CMD",
+                'CMD ["python", "-m", "uvicorn", "app.api.main:app", '
+                '"--host", "0.0.0.0", "--port", "${PORT:-8080}"]',
+            ),
+            "secret env": self.dockerfile + "\nENV SAFE=x OPENAI_API_KEY=secret\n",
+            "root env negation": self.dockerignore_lines + ["!.env"],
+            "slash root env negation": self.dockerignore_lines + ["!/.env"],
+            "glob root env negation": self.dockerignore_lines + ["!**/.env"],
+            "single quoted port": self.dockerfile.replace(
+                r'\"${PORT:-8080}\"', "'${PORT:-8080}'"
+            ),
+            "shell comment command": _replace_cmd(
+                self.dockerfile,
+                'exec false # python -m uvicorn app.api.main:app --host 0.0.0.0 '
+                '--port "${PORT:-8080}"',
+            ),
+            "final alpine stage": self.dockerfile + "\nFROM alpine:3.20\n",
+            "missing pip": self.dockerfile.replace(
+                "python -m pip install --no-cache-dir --target /app /tmp/build",
+                "echo missing-pip",
+            ),
+            "missing groupadd": self.dockerfile.replace(
+                "groupadd --system app", "echo missing-group"
+            ),
+            "missing useradd": self.dockerfile.replace(
+                "useradd --system --gid app", "echo missing-user"
+            ),
+            "data directory exclusion": self.dockerignore_lines + ["data"],
+        }
+        for name, mutation in mutations.items():
+            with self.subTest(mutation=name):
+                if isinstance(mutation, list):
+                    mutated_dockerfile = self.dockerfile
+                    mutated_dockerignore = mutation
+                else:
+                    mutated_dockerfile = mutation
+                    mutated_dockerignore = self.dockerignore_lines
+                with self.assertRaises(AssertionError):
+                    validate_container_contract(mutated_dockerfile, mutated_dockerignore)
 
 
 if __name__ == "__main__":
