@@ -85,6 +85,62 @@ _META_RESPONSES = {
     "puedes responder preguntas sobre su cv": AGENT_CAPABILITIES_RESPONSE_TEXT,
 }
 
+_CAPABILITIES_FRAMING_TERMS = frozenset(
+    {
+        "a",
+        "about",
+        "acerca",
+        "al",
+        "and",
+        "ask",
+        "como",
+        "con",
+        "cosas",
+        "deberia",
+        "cuál",
+        "cuales",
+        "cual",
+        "dame",
+        "de",
+        "del",
+        "el",
+        "en",
+        "for",
+        "hacer",
+        "hacerte",
+        "ideas",
+        "israel",
+        "la",
+        "las",
+        "los",
+        "me",
+        "of",
+        "on",
+        "para",
+        "pregunta",
+        "preguntas",
+        "preguntar",
+        "preguntarte",
+        "puede",
+        "puedes",
+        "puedo",
+        "podria",
+        "que",
+        "qué",
+        "sugiere",
+        "sugieres",
+        "sugiero",
+        "sobre",
+        "su",
+        "sus",
+        "te",
+        "the",
+        "tiburcio",
+        "what",
+        "you",
+    }
+)
+
 _SENSITIVE_MARKERS = (
     "contrasena",
     "password",
@@ -140,7 +196,10 @@ def _is_capabilities_question(normalized: str) -> bool:
     ) or question_terms
     if not ask_verbs:
         return False
-    return bool(question_terms or tokens.intersection({"cosas", "ideas", "sobre"}))
+    if not (question_terms or tokens.intersection({"cosas", "ideas", "sobre"})):
+        return False
+    substantive_terms = tokens - _CAPABILITIES_FRAMING_TERMS
+    return not substantive_terms
 
 
 def deterministic_response_for(value: str) -> tuple[str, str] | None:

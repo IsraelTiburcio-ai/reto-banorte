@@ -280,6 +280,19 @@ class ProfileSearchTests(unittest.TestCase):
         aws_results = self.service.search("¿Tiene experiencia con AWS?")
         self.assertEqual([item.entity_id for item in aws_results[:1]], ["aws"])
 
+    def test_explicit_cloud_provider_queries_are_isolated(self) -> None:
+        cases = (
+            ("¿Tiene experiencia con AWS?", {"aws"}),
+            ("¿Qué sabe de GCP?", {"gcp"}),
+            ("¿Conoce Oracle Cloud?", {"oracle-cloud"}),
+            ("¿Conoce Amazon Web Services?", {"aws"}),
+            ("¿Qué sabe de Google Cloud Platform?", {"gcp"}),
+        )
+        for query, expected_ids in cases:
+            with self.subTest(query=query):
+                result_ids = self.ids_for(query)
+                self.assertEqual(result_ids, expected_ids)
+
     def test_natural_language_python_and_fastapi_query_is_relevant(self) -> None:
         results = self.service.search("¿Qué experiencia tiene con Python y FastAPI?")
         result_ids = {result.entity_id for result in results}

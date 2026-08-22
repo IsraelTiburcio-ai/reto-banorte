@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.agent.core import AgentCore
 from app.api.main import create_app
 from app.api.open_responses_formatter import (
+    AGENT_CAPABILITIES_RESPONSE_TEXT,
     ENGLISH_GREETING_RESPONSE_TEXT,
     GREETING_RESPONSE_TEXT,
     INSUFFICIENT_EVIDENCE_TEXT,
@@ -542,6 +543,44 @@ class OpenResponsesApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.text_generator.requests[-1].query, current)
 
+    def test_generation_history_message_bound_is_independent(self) -> None:
+        history = [
+            {"role": "user", "content": f"u{index}"}
+            if index % 2 == 0
+            else {"role": "assistant", "content": f"a{index}"}
+            for index in range(10)
+        ]
+        history.append({"role": "user", "content": "public evidence"})
+
+        response = self.post({"input": history})
+
+        self.assertEqual(response.status_code, 200)
+        used_history = self.text_generator.requests[-1].transcript
+        self.assertEqual(len(used_history), MAX_GENERATION_HISTORY_MESSAGES)
+        self.assertLess(sum(len(message.text) for message in used_history), 8_000)
+        self.assertEqual(used_history[0].text, "u2")
+        self.assertEqual(used_history[-1].text, "a9")
+
+    def test_generation_history_character_budget_is_independent(self) -> None:
+        history = [
+            {"role": "user", "content": f"history-{index} " + ("x" * 1490)}
+            for index in range(6)
+        ]
+        history.append({"role": "user", "content": "public evidence"})
+
+        response = self.post({"input": history})
+
+        self.assertEqual(response.status_code, 200)
+        used_history = self.text_generator.requests[-1].transcript
+        self.assertLess(len(used_history), 8)
+        self.assertLess(len(used_history), 6)
+        self.assertLessEqual(
+            sum(len(message.text) for message in used_history),
+            MAX_GENERATION_HISTORY_CHARS,
+        )
+        self.assertNotIn("history-0", [message.text for message in used_history])
+        self.assertIn("history-5", used_history[-1].text)
+
     def test_long_transcript_streams_with_store_false(self) -> None:
         history = []
         for index in range(14):
@@ -662,6 +701,24 @@ class OpenResponsesApiTests(unittest.TestCase):
 
         self.assertEqual(self.profile_service.calls, [])
         self.assertEqual(self.text_generator.requests, [])
+
+    def test_capabilities_framing_with_explicit_topic_keeps_the_topic(self) -> None:
+        cases = (
+            ("¿Qué preguntas me sugieres hacerte sobre MCP?", "mcp"),
+            ("¿Qué podría preguntarte sobre Python?", "python"),
+            ("Dame ideas de preguntas sobre los proyectos de Israel", "proyectos"),
+        )
+        for question, expected_marker in cases:
+            with self.subTest(question=question):
+                self.profile_service.calls.clear()
+                self.text_generator.requests.clear()
+                response = self.post({"input": question})
+
+                self.assertEqual(response.status_code, 200)
+                text = response.json()["output"][0]["content"][0]["text"]
+                self.assertNotEqual(text, AGENT_CAPABILITIES_RESPONSE_TEXT)
+                self.assertTrue(self.profile_service.calls)
+                self.assertIn(expected_marker, self.profile_service.calls[-1][0].casefold())
 
     def test_sensitive_and_out_of_scope_requests_are_safe_local_redirects(self) -> None:
         for question in (
