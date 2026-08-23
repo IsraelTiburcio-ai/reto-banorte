@@ -124,15 +124,15 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
   ruta, estado, duración, categoría de error, estado del agente y modelo del
   proveedor. No registran payloads, respuestas, evidencia, headers, cookies ni
   secretos.
-- El límite real del body es 256 KiB (262,144 bytes) en los dos POST protegidos,
+- El límite real del body es 512 KiB (524,288 bytes) en los dos POST protegidos,
   incluso sin `Content-Length` o cuando llegan varios chunks. Además se
   rechaza texto simple, mensaje o parte de contenido mayor a 12,000 caracteres,
-  transcripts de más de 128 mensajes y mensajes de más de 32 partes. Un transcript histórico
+  transcripts de más de 256 mensajes y mensajes de más de 32 partes. Un transcript histórico
   válido puede superar el antiguo total agregado mientras el body permanezca
-  dentro de 256 KiB; antes de retrieval/generación se conserva solo una ventana
+  dentro de 512 KiB; antes de retrieval/generación se conserva solo una ventana
   reciente de hasta 8 mensajes y 8,000 caracteres de historial. La pregunta
   actual se conserva completa y viaja una sola vez como `current_user_question`.
-- El límite de 256 KiB no es global: las rutas públicas conservan el `receive`
+- El límite de 512 KiB no es global: las rutas públicas conservan el `receive`
   ASGI original y no consumen ni reconstruyen su body mediante este middleware.
 - `provider_invoked` solo es `true` cuando el generador confirma un intento
   outbound al proveedor; `input_chars` es el total de texto aceptado del
@@ -269,11 +269,11 @@ The grounding boundary limits what may be asserted about Israel; it does not
 prevent natural explanation or favorable synthesis of supported facts. The
 public profile context is generated from `ProfileService.get_profile("public")`
 and measured at 48,359 characters / 48,921 UTF-8 bytes for the current
-canonical profile. A request may contain up to 128 replayed transcript
+canonical profile. A request may contain up to 256 replayed transcript
 messages, while only the most recent 8 messages and 8,000 characters are
 passed to generation. The conversation remains stateless and assistant
 transcript text is never evidence.
-The protected request body limit is 256 KiB (262,144 bytes), with the exact
+The protected request body limit is 512 KiB (524,288 bytes), with the exact
 boundary accepted and the next byte rejected; individual messages remain
 limited to 12,000 characters and content parts to 32. Generic token suffix
 normalization remains limited to deterministic lexical retrieval and does not

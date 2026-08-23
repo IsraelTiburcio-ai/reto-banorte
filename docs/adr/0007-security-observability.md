@@ -96,16 +96,16 @@ The application applies conservative limits:
 
 | Boundary | Limit |
 | --- | ---: |
-| request body | 256 KiB |
+| request body | 512 KiB |
 | single text or message | 12,000 characters |
-| transcript messages | 128 |
+| transcript messages | 256 |
 | content parts in one message | 32 |
 | generation history window | 8 messages / 8,000 characters |
 
 The ASGI boundary checks the declared length as an early optimization and also
 counts bytes while reading chunks for both protected POST endpoints. It
 buffers at most the permitted body and replays a valid body to FastAPI, so
-`262,144` bytes is accepted and `262,145` bytes is rejected even without a
+`524,288` bytes is accepted and `524,289` bytes is rejected even without a
 `Content-Length` header. The byte limit is separate from the per-text character
 limit. A transcript's aggregate text is not rejected solely because it exceeds
 12,000 characters; the body limit, message limit, and part-count limit still

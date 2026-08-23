@@ -57,12 +57,12 @@ factual source. No persistent memory, session, cache, or
 
 ## Transcript limits
 
-The received transcript limit is increased to 128 messages to support Parley’s
-stateless replay. The body-size limit is 256 KiB, while per-message/content-part
+The received transcript limit is increased to 256 messages to support Parley’s
+stateless replay. The body-size limit is 512 KiB, while per-message/content-part
 protections remain active. After validation, generation still receives at most
 8 recent messages and 8,000 characters; the current user question remains
 separate and complete. Tests cover 33-message and 40–60-message acceptance,
-the exact 128/129 boundary, exact 256 KiB/256 KiB+1 byte body boundaries,
+the exact 256/257 boundary, exact 512 KiB/512 KiB+1 byte body boundaries,
 valid bodies above 64 KiB, per-message and content-part boundaries, and one
 sequential 30-turn replay. A separate regression replays 50 realistic turns
 and verifies that the received transcript can exceed 32 messages while the
