@@ -1,368 +1,473 @@
 # Reto IA Banorte — CV Agent
 
-## Objetivo
+Agente conversacional público para representar la trayectoria profesional de
+Israel Tiburcio Suchil con respuestas útiles, claras y grounded. Puede conversar
+sobre experiencia, habilidades, proyectos, decisiones técnicas, forma de trabajo,
+aprendizajes y áreas de crecimiento.
 
-Construir un agente conversacional que permita explorar el perfil profesional de un candidato y que posteriormente será integrado mediante una interfaz compatible con Open Responses.
+El proyecto se construyó de forma incremental: primero una fuente profesional
+estructurada y un retrieval determinista; después una frontera de AgentCore,
+una API compatible con un subset de Open Responses, generación grounded,
+evaluaciones, seguridad, observabilidad, containerización y compatibilidad con
+replay stateless de Parley.
 
-## Estado
+## Demo / endpoint
 
-Phase 10 — Parley compatibility and retrieval robustness
+Servicio público:
 
-La Phase 6 reemplaza el formateador determinista temporal por generación grounded mediante el SDK oficial de OpenAI. El LLM solo recibe la evidencia pública ya preparada por `AgentCore`; no hace retrieval ni lee el perfil canónico.
+https://cv-agent-540272372336.us-central1.run.app
 
-Endpoints actuales:
+Base de la API interoperable:
 
-- `GET /health`
-- `GET /ready`
-- `POST /agent/prepare`
-- `POST /v1/responses`
+https://cv-agent-540272372336.us-central1.run.app/v1
 
-`POST /agent/prepare` es un contrato interno. `POST /v1/responses` es un contrato interoperable parcial: Phase 5/6 no afirma full conformance con Open Responses.
+Endpoint Open Responses:
 
-## Arquitectura inicial
+POST /v1/responses
 
-- `api`: interfaz HTTP delgada, schemas, adaptador Open Responses y serialización.
-- `llm`: contratos provider-neutral, prompts de aplicación y proveedor OpenAI.
-- `agent`: política de comportamiento y orquestación provider-neutral del agente.
-- `models`: modelos internos y contratos provider-neutral.
-- `services`: lógica reutilizable e integraciones externas.
-- `core`: configuración, logging, seguridad y manejo de errores.
-- `data`: fuente de verdad estructurada del CV.
-- `evals`: datasets y scripts para evaluar el agente.
-- `tests`: pruebas automatizadas.
-- `docs`: arquitectura, decisiones técnicas y diagramas.
+Modelo lógico:
 
-Flujo actual:
+banorte-cv-agent
 
-`POST /v1/responses -> Open Responses adapter -> AgentCore -> ProfileService -> public evidence -> LLM generator -> OpenAI Responses API`
+Health:
 
-`ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
+GET /health
 
-El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto mediante el provider en cada request textual válido, incluso cuando el retrieval dirigido está vacío; recibe el contexto público base y evidencia específica cuando existe. Los hechos sobre Israel siguen limitados al contexto/evidence públicos y grounded. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+Readiness:
 
-## Open Responses subset
+GET /ready
 
-```bash
-curl -X POST http://localhost:8000/v1/responses \
+Los endpoints POST requieren Bearer auth cuando AGENT_API_KEY está configurada
+en el servicio. La credencial se envía como:
+
+    Authorization: Bearer <AGENT_API_KEY>
+
+No se publica ninguna API key, token o valor de Secret Manager en este
+repositorio. OPENAI_API_KEY es únicamente una credencial de salida hacia el
+provider y AGENT_API_KEY protege la API del agente; son secretos distintos.
+
+## Arquitectura
+
+El flujo principal es:
+
+~~~mermaid
+flowchart TD
+    C[Cliente / Parley] --> O[Open Responses API]
+    O --> A[AgentCore]
+    A --> P[ProfileService]
+    P --> E[Perfil público y evidencia dirigida]
+    E --> G[LLM provider]
+    G --> R[Respuesta grounded]
+~~~
+
+Las responsabilidades están separadas:
+
+- La API valida el transporte, extrae la pregunta actual y conserva el
+  transcript como contexto estructural.
+- AgentCore llama a ProfileService con visibility pública y limita la evidencia
+  que llega al generador.
+- ProfileService carga el perfil canónico, aplica visibility, filtra contenido
+  nested y realiza búsqueda determinista.
+- El contrato TextGenerator es provider-neutral. La implementación actual usa
+  la Responses API oficial de OpenAI.
+- El provider recibe el contexto público y la evidencia ya preparada; no lee
+  data/profile.json ni realiza retrieval por su cuenta.
+
+La API pública no duplica reglas de retrieval, grounding o visibilidad.
+
+## 1. Diseñar
+
+### Perfil estructurado como fuente canónica
+
+data/profile.json contiene el conocimiento profesional preparado para el agente.
+Incluye identidad, resumen profesional, experiencia, proyectos, educación,
+formación, skills calibradas, áreas de conocimiento, working style, decisiones,
+colaboración, aprendizajes, fortalezas, crecimiento y narrativas profesionales.
+
+El perfil utiliza tres niveles de visibilidad:
+
+- public: puede utilizarse como conocimiento factual sobre Israel;
+- internal_summary: se reserva para una política interna explícita;
+- do_not_expose: nunca se entrega.
+
+El flujo público solo permite public. La política también preserva niveles de
+habilidad, ownership, métricas aproximadas y la diferencia entre experiencia
+práctica, académica, histórica, conceptual y autoevaluada.
+
+### Retrieval sin convertirlo en gate
+
+El retrieval selecciona evidencia especialmente relevante para la pregunta
+actual. No decide si el agente tiene permitido conversar.
+
+El principio es:
+
+> El retrieval determina qué evidencia específica está disponible sobre Israel,
+> no si el agente tiene permitido hablar.
+
+Por eso, un retrieval dirigido vacío no bloquea automáticamente la generación:
+el provider aún recibe el contexto público base y puede responder una pregunta
+general, una interacción social o una pregunta fuera de alcance de forma
+natural, sin inventar hechos sobre Israel. Cuando sí existe evidencia dirigida,
+se añade al mismo contexto público y se conserva su ranking determinista.
+
+### Conocimiento general frente a hechos sobre Israel
+
+El modelo puede explicar conocimiento general. Por ejemplo, puede explicar la
+diferencia entre RAG y fine-tuning sin atribuir esa explicación a la experiencia
+de Israel.
+
+En cambio, cualquier afirmación sobre Israel —experiencia, proyectos, skills,
+educación, métricas u ownership— debe estar respaldada por el contexto público
+de la aplicación o por evidencia pública recuperada. El transcript no se
+convierte automáticamente en evidencia factual.
+
+### Por qué no utilicé una base vectorial
+
+El corpus actual es pequeño, estructurado y mantenido explícitamente. Preferí
+búsqueda exacta, substring y token matching determinista porque es fácil de
+inspeccionar, probar y proteger con visibility.
+
+No considero que embeddings o una vector database sean una mala solución. Serían
+una evolución razonable si el corpus creciera significativamente, aparecieran
+muchos documentos o el retrieval lexical dejara de ser suficiente. Hoy añadirían
+complejidad operacional sin resolver una necesidad actual.
+
+### Provider-neutral
+
+El contrato del agente no depende del modelo externo. TextGenerator define una
+interfaz pequeña para generar una respuesta a partir de una solicitud ya
+grounded. Cambiar el modelo o implementar otro provider no requiere cambiar el
+contrato Open Responses ni mover retrieval al provider.
+
+### Conversaciones stateless
+
+El backend no almacena memoria conversacional persistente. El cliente reenvía el
+transcript en cada request y el adaptador conserva una ventana reciente para
+generación.
+
+Elegí este diseño para mantener un comportamiento predecible, reducir estado
+en el servidor, limitar exposición de datos y ser compatible con replay de
+transcripciones de Parley. El transcript aporta contexto conversacional, no
+autoridad factual.
+
+## 2. Integrar
+
+La solución integra:
+
+- un perfil profesional estructurado;
+- retrieval determinista y public-only;
+- AgentCore;
+- el subset textual de Open Responses;
+- un provider LLM intercambiable;
+- la implementación OpenAI actual;
+- replay stateless de Parley/Banorte;
+- autenticación, límites y observabilidad;
+- evaluaciones reproducibles;
+- un contenedor preparado para Cloud Run.
+
+Evidence y transcript tienen responsabilidades distintas:
+
+- EVIDENCE: hechos públicos preparados sobre Israel para el turno;
+- TRANSCRIPT: contexto de la conversación.
+
+Una afirmación del usuario o una respuesta anterior del assistant no se convierte
+automáticamente en un hecho profesional. El prompt del provider etiqueta ambos
+como datos de referencia y mantiene las instrucciones de la aplicación fuera
+del contenido recuperado.
+
+## 3. Desplegar
+
+La instancia pública del reto se ejecuta con un flujo de containerización y
+servicios administrados:
+
+source → Docker build → Google Cloud Build → Artifact Registry → Cloud Run
+
+El stack de despliegue contempla:
+
+- Docker para empaquetar la aplicación;
+- Google Cloud Build para construir la imagen;
+- Artifact Registry para almacenarla;
+- Cloud Run en us-central1 para ejecutar el servicio;
+- Secret Manager para credenciales;
+- una service account dedicada para reducir permisos.
+
+Cloud Run aporta escalado serverless. /health y /ready permiten distinguir
+liveness de readiness sin llamar al provider.
+
+El contenedor escucha en 0.0.0.0, respeta PORT, ejecuta Uvicorn como usuario
+no root e incluye únicamente el runtime y el perfil necesario. Las credenciales
+se inyectan en runtime; no se incluyen en Dockerfile, argumentos de build,
+README ni imagen.
+
+## 4. Operar
+
+### Seguridad
+
+- Bearer authentication opcional mediante AGENT_API_KEY.
+- OPENAI_API_KEY separada de la credencial del agente.
+- Secretos fuera del repositorio y administrados por el entorno de despliegue.
+- service account dedicada.
+- filtering public-only antes de scoring y generación.
+- contenido recuperado tratado como datos, nunca como instrucciones.
+- transcript separado de evidence.
+- store=false hacia el provider OpenAI.
+- sin persistencia conversacional, tools, memoria del servidor ni llamadas
+  externas adicionales.
+- logs sin payloads, respuestas, evidencia, headers, cookies o secretos.
+
+### Límites operativos
+
+Los límites finales se definen en app/core/limits.py:
+
+| Límite | Valor |
+| --- | ---: |
+| body HTTP protegido | 512 KiB (524,288 bytes) |
+| texto simple o mensaje | 12,000 caracteres |
+| mensajes de transcript recibidos | 256 |
+| partes de contenido por mensaje | 32 |
+| history enviado al generador | 8 mensajes |
+| caracteres de history enviados al generador | 8,000 |
+
+El sistema puede aceptar un transcript largo, pero eso no significa que todo el
+transcript se envíe al modelo. Antes de generación se conserva únicamente una
+ventana reciente de hasta 8 mensajes y 8,000 caracteres de historial; la
+pregunta actual se conserva completa y se envía separada.
+
+Estos límites permiten aproximadamente 120 pares pregunta/respuesta dentro de
+un request, siempre que el body completo permanezca dentro de 512 KiB. El límite
+de partes de contenido es independiente: 32 partes aplican dentro de un solo
+mensaje, no al número total de preguntas.
+
+### Observabilidad
+
+Cada request recibe un X-Request-ID generado por el servidor. Los logs
+estructurados registran únicamente campos operativos como ruta, status, duración,
+categoría de error, estado del agente, provider model y si se intentó una
+llamada outbound.
+
+provider_invoked solo es true cuando el generador confirma un intento hacia el
+provider. input_chars es un conteo de caracteres aceptados; nunca contiene el
+payload.
+
+/ready valida localmente la policy, AgentCore, ProfileService y el adapter. No
+llama a OpenAI ni requiere OPENAI_API_KEY.
+
+## 5. Verificar
+
+### Tests automatizados
+
+La suite actual contiene 168 tests y cubre:
+
+- AgentCore y límites de evidencia;
+- ProfileService, ranking, deep copies y visibility;
+- grounding y ausencia de contenido restringido;
+- autenticación y errores sanitizados;
+- Open Responses JSON y envelope de errores;
+- SSE y coherencia de IDs, índices y eventos;
+- replay de transcript user/assistant;
+- límites de body, mensajes, texto y content parts;
+- store, metadata compatible con Parley y campos no soportados;
+- fallos del provider;
+- health y readiness;
+- Dockerfile, .dockerignore y mutaciones del contrato de contenedor;
+- follow-ups y representación profesional;
+- integración de contexto público enriquecido.
+
+Validaciones locales ejecutadas:
+
+~~~bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q app evals tests
+python3 -m json.tool data/profile.json > /dev/null
+git diff --check
+~~~
+
+### Evals offline
+
+La suite reproducible contiene 21 casos y no consume la API real:
+
+~~~bash
+python3 -m evals.runner
+~~~
+
+Resultado actual:
+
+- checks PASS: 138;
+- checks FAIL: 0;
+- checks NOT_EVALUATED: 56;
+- checks N/A: 37;
+- checks ejecutados: 138;
+- checks aplicables: 194;
+- coverage: 71.1%.
+
+El runner separa contrato/retrieval de semántica generada. Las checks
+NOT_EVALUATED requieren una respuesta del provider y revisión humana; no se usa
+LLM-as-a-judge. N/A significa que no existe una expectativa para ese caso. El
+coverage no es una métrica de calidad general ni de factualidad.
+
+### Pre-Banorte smoke
+
+evals/pre_banorte_cases.json contiene 30 casos auditables. El smoke offline
+valida el contrato sin hacer llamadas HTTP ni provider:
+
+~~~bash
+python3 scripts/pre_banorte_smoke.py
+~~~
+
+También existe una ejecución productiva local de 30 turnos estilo Parley para
+revisar conversación natural, follow-ups, preguntas ambiguas, calibración,
+conocimiento general, tecnologías no dominadas y conversaciones largas:
+
+~~~bash
+python3 scripts/conversational_ux_product.py
+~~~
+
+El modo live es opt-in y no reintenta automáticamente:
+
+~~~bash
+python3 scripts/conversational_ux_product.py --live
+~~~
+
+Las respuestas generadas se revisan semánticamente; los marcadores REVIEW no
+son un PASS automático.
+
+### Pruebas live
+
+Se ejecutaron sesiones live controladas de 30 turnos para observar conversación
+natural, follow-ups, preguntas ambiguas, ownership, skill calibration,
+conocimiento general y preguntas fuera de alcance. Los logs no se incorporan al
+README ni contienen credenciales.
+
+### Mutaciones dirigidas
+
+Durante la validación se probaron mutaciones deliberadas sobre guardrails
+críticos para comprobar que las regresiones fueran detectables, incluyendo
+límites de history, aceptación de metadata legítima de Parley y el contrato del
+contenedor. Esto complementa la suite normal; no se presenta como una suite
+genérica de mutation testing.
+
+## Contexto profesional
+
+El perfil comenzó enfocado en hechos, proyectos y habilidades. Después se
+enriqueció para representar también:
+
+- forma de trabajar;
+- toma de decisiones y trade-offs;
+- colaboración y ownership;
+- validación y pruebas;
+- aprendizajes;
+- fortalezas;
+- áreas de crecimiento;
+- narrativas profesionales.
+
+El enriquecimiento está en la knowledge base pública, no en respuestas
+hardcodeadas. El modelo puede sintetizar distintas preguntas a partir del mismo
+contexto, manteniendo calibración y límites de evidencia.
+
+## Compatibilidad Open Responses
+
+La API implementa un subset síncrono, textual y stateless:
+
+- input como string;
+- mensajes user y assistant;
+- partes input_text;
+- metadata como mapa de strings compatible;
+- respuesta JSON;
+- SSE materializado para stream=true;
+- store ausente, null o false;
+- replay estructural de transcript.
+
+El modelo lógico externo es banorte-cv-agent. El campo model puede omitirse o ser
+null; en ese caso se usa ese identificador local. Un model vacío se rechaza.
+
+El SSE materializa primero la respuesta completa y después emite la secuencia de
+eventos compatible. No activa token streaming del provider.
+
+No se afirma full conformance con Open Responses. Persistencia stateful,
+previous_response_id, tools, multimodalidad, system/developer, background,
+compaction y capacidades avanzadas quedan fuera del subset actual.
+
+## Ejecutar localmente
+
+Requisitos:
+
+- Python 3.11 o posterior;
+- dependencias definidas en pyproject.toml;
+- Docker solo para probar el contenedor.
+
+~~~bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[test]'
+~~~
+
+Configura variables por nombre en el entorno local cuando correspondan:
+
+~~~bash
+export OPENAI_API_KEY="<configurar-localmente>"
+export OPENAI_MODEL="gpt-5.6-luna"
+export AGENT_API_KEY="<configurar-si-se-requiere-auth>"
+~~~
+
+No publiques los valores de esas variables ni los agregues a tests, README,
+Dockerfile o Git. .env está ignorado y .env.example solo contiene placeholders.
+
+Arranque local:
+
+~~~bash
+uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+~~~
+
+Comprobaciones:
+
+~~~bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
+
+curl -X POST http://127.0.0.1:8000/v1/responses \
   -H 'Content-Type: application/json' \
   -d '{"model":"banorte-cv-agent","input":"¿Qué experiencia tiene Israel con MCP?"}'
-```
+~~~
 
-El request requiere `input`; `model` es opcional por compatibilidad con la configuración de Parley/Banorte y usa `banorte-cv-agent` cuando está ausente o es `null`. Un string no vacío se preserva y un valor vacío o whitespace-only se rechaza. `stream` es `false` por defecto: `null` y `false` conservan JSON, mientras `true` usa `text/event-stream; charset=utf-8`, `Cache-Control: no-store` y la secuencia SSE de ciclo de vida de Open Responses. El endpoint no mantiene conversaciones: acepta `store` ausente, `null` o `false` como formas stateless, pero rechaza `store=true`; también rechaza `previous_response_id`, `background`, `compaction`, tools o visibilidad seleccionable por el cliente.
+Si AGENT_API_KEY está configurada, agrega:
 
-## Phase 6 — LLM integration
+~~~bash
+-H 'Authorization: Bearer <AGENT_API_KEY>'
+~~~
 
-Configura el proveedor únicamente mediante variables de entorno:
+Suite local:
 
-```bash
-export OPENAI_API_KEY='...'
-export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
-```
-
-`model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
-
-El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe el contexto público base y la evidencia pública aprobada por `AgentCore`; cualquier hecho sobre Israel debe permanecer grounded en esos datos.
-
-## Phase 7 — Evals
-
-La suite reproducible de evaluación mide factuality, groundedness, relevance,
-abstention, ownership y skill calibration, métricas aproximadas, distinción
-profesional/académica/conceptual, preguntas fuera de alcance, prompt injection,
-información restringida, follow-ups, natural-language retrieval y entradas en
-español e inglés.
-
-Las evals offline son deterministas, usan `AgentCore` y no consumen la API real:
-
-```bash
+~~~bash
+python3 -m unittest discover -s tests -v
 python3 -m evals.runner
-```
-
-El reporte separa `OFFLINE CASE STATUS`, `CHECK COVERAGE` y
-`LIVE/MANUAL COVERAGE`. `PASS` offline significa únicamente que los checks de
-retrieval/contrato aplicables pasaron; `NOT_EVALUATED` cubre factualidad
-semántica, groundedness de la prosa, ownership, skill calibration y paráfrasis
-que requieren respuesta generada y revisión humana. No se presenta el pass
-rate offline como calidad general del agente. `N/A` significa que el caso no
-declaró esa expectativa; `NOT_EVALUATED` significa que sí la declaró pero el
-modo actual no puede evaluarla. Coverage es checks `PASS + FAIL` sobre checks
-aplicables (`PASS + FAIL + NOT_EVALUATED`), excluyendo `N/A`.
-
-También pueden ejecutarse los tests de infraestructura con la suite normal:
-
-```bash
-python3 -m unittest discover -v tests
-```
-
-Las evals live están separadas y requieren confirmación explícita y un límite
-pequeño de casos:
-
-```bash
-python3 -m evals.runner --live --confirm-live --limit 1
-```
-
-No se usa LLM-as-a-judge en esta fase. El modo offline no guarda respuestas
-generadas como verdad absoluta y no imprime secretos. El follow-up
-`¿Y cuál usabas más?` permanece como limitación conocida y puede fallar por
-coreferencia.
-
-## Phase 8 — Security & Observability
-
-Phase 8 agrega controles pequeños y explícitos en el borde HTTP sin mover
-retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
-
-- `AGENT_API_KEY` habilita autenticación Bearer opcional para
-  `/agent/prepare` y `/v1/responses`; no es la API key de OpenAI.
-- Cuando está configurada, la autenticación ocurre antes de que FastAPI lea o
-  valide el body; payloads inválidos sin credenciales reciben 401.
-- `GET /health` y `GET /ready` permanecen públicos para liveness/readiness y no
-  llaman al proveedor.
-- `/ready` valida la policy, la estructura del adapter y ejecuta un probe local
-  de `AgentCore -> ProfileService`; devuelve `503 {"status":"not_ready"}` si
-  un componente esencial no es usable. No verifica ni llama a OpenAI.
-- Cada respuesta incluye un `X-Request-ID` nuevo generado por el servidor.
-- Los logs son JSON de una línea y solo contienen campos operativos seguros:
-  ruta, estado, duración, categoría de error, estado del agente y modelo del
-  proveedor. No registran payloads, respuestas, evidencia, headers, cookies ni
-  secretos.
-- El límite real del body es 512 KiB (524,288 bytes) en los dos POST protegidos,
-  incluso sin `Content-Length` o cuando llegan varios chunks. Además se
-  rechaza texto simple, mensaje o parte de contenido mayor a 12,000 caracteres,
-  transcripts de más de 256 mensajes y mensajes de más de 32 partes. Un transcript histórico
-  válido puede superar el antiguo total agregado mientras el body permanezca
-  dentro de 512 KiB; antes de retrieval/generación se conserva solo una ventana
-  reciente de hasta 8 mensajes y 8,000 caracteres de historial. La pregunta
-  actual se conserva completa y viaja una sola vez como `current_user_question`.
-- El límite de 512 KiB no es global: las rutas públicas conservan el `receive`
-  ASGI original y no consumen ni reconstruyen su body mediante este middleware.
-- `provider_invoked` solo es `true` cuando el generador confirma un intento
-  outbound al proveedor; `input_chars` es el total de texto aceptado del
-  request/transcript y nunca contiene el texto.
-- Los errores inesperados se convierten en respuestas sanitizadas; los errores
-  422 existentes de `/agent/prepare` se conservan.
-
-Plantilla local segura:
-
-```bash
-cp .env.example .env
-```
-
-Configura `AGENT_API_KEY` únicamente en el entorno donde se necesite proteger
-la API. Con la key configurada, la UI/API de Banorte debe enviar una credencial
-del agente como header conceptual:
-
-```text
-Authorization: Bearer <AGENT_API_KEY>
-```
-
-La API key de la UI de Banorte debe corresponder a `AGENT_API_KEY`; nunca se
-debe introducir `OPENAI_API_KEY` en Banorte. `OPENAI_API_KEY` continúa siendo
-exclusivamente una credencial de salida hacia el proveedor y nunca debe
-aparecer en código, logs, README o tests. El rate limiting distribuido, WAF,
-IAM, tracing/metrics backend, Docker y despliegue quedan fuera de Phase 8.
-
-Validación:
-
-```bash
-python3 -m unittest discover -v tests
-python3 -m evals.runner
-```
-
-## Phase 9 — Containerization / Docker
-
-La imagen se construye desde el `pyproject.toml` canónico, incluye únicamente
-el runtime de la aplicación y `data/profile.json`, y ejecuta Uvicorn como un
-usuario no root. El contenedor escucha en `0.0.0.0`, respeta `PORT` y conserva
-los logs estructurados en stdout.
-
-### Validación estática
-
-Los tests de contrato parsean las instrucciones efectivas del Dockerfile y
-evalúan las reglas relevantes de `.dockerignore`, incluyendo continuaciones,
-orden de `USER`, semántica de `CMD`, declaraciones `ENV`/`ARG`, destinos
-`COPY` y negaciones last-match-wins. También contienen regresiones contra
-mutaciones conocidas del review. La suite normal no requiere Docker.
-
-Build local:
-
-```bash
-docker build -t reto-banorte-cv-agent:local .
-```
-
-Run sin proveedor:
-
-```bash
-docker run --rm -p 8080:8080 reto-banorte-cv-agent:local
-```
-
-Configuración de runtime con placeholders — nunca uses claves reales en el
-Dockerfile, argumentos de build, README o imagen:
-
-```bash
-docker run --rm \
-  -p 8080:8080 \
-  -e AGENT_API_KEY="<agent-api-key>" \
-  -e OPENAI_API_KEY="<openai-api-key>" \
-  -e OPENAI_MODEL="gpt-5.6-luna" \
-  reto-banorte-cv-agent:local
-```
-
-`AGENT_API_KEY` protege nuestros endpoints privados; `OPENAI_API_KEY` es la
-credencial outbound del proveedor. Ambas se inyectan únicamente al ejecutar
-el contenedor. `.env` está excluido del contexto y no se copia a la imagen.
-
-Endpoints para smoke tests:
-
-- `GET /health` — liveness, no requiere proveedor.
-- `GET /ready` — readiness local, no llama a OpenAI.
-- `POST /v1/responses` — contrato interoperable; requiere auth si
-  `AGENT_API_KEY` está configurada.
-
-Phase 9 solo prepara la imagen. Cloud Run, GCP, Artifact Registry, Secret
-Manager, IAM, Compose, Kubernetes y deployment permanecen fuera de alcance.
-
-## Phase 10 — Parley compatibility and retrieval robustness
-
-Phase 10 keeps `POST /v1/responses` stateless while accepting the structural
-metadata emitted when Parley replays a transcript. Assistant messages may
-include a valid `msg_` `id`, `type: "message"`, a supported lifecycle
-`status`, and `output_text` annotations. These fields are validated as
-transport metadata, then discarded before `AgentCore` or the provider prompt;
-only message roles and text remain. `system` and `developer` roles,
-stateful continuation, and unsupported capabilities remain rejected.
-
-All valid textual requests use the normal grounded pipeline and invoke the
-configured provider, including greetings, identity, social, out-of-scope and
-follow-up questions. The adapter does not contain a conversational intent
-classifier or a catalog of fixed answers. Safety and visibility remain
-enforced by the trusted policy, `AgentCore`, `ProfileService` and provider
-instructions.
-
-The auditable pre-Banorte QA fixture is `evals/pre_banorte_cases.json` (30
-cases). Run `python3 scripts/pre_banorte_smoke.py` for the default offline
-validation; it makes zero HTTP/provider calls and does not use an LLM judge.
-Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
-intended; generated-answer cases are reported for manual review.
-
-The lexical retriever keeps exact ID, name/title, substring, context and
-deterministic token matching for the current query. It does not classify
-intent, resolve coreference, or maintain a second conversational vocabulary.
-Assistant text is never treated as evidence or retrieval instructions. A
-bounded recent transcript is provided to generation as conversation data, but
-every factual claim must come from the public context or public evidence
-returned by `ProfileService`. Results remain ordered public evidence copies
-only; they do not infer dates, ownership, relevance, skills, or technologies
-that are not present in the profile.
-Exact IDs, names, titles, and existing substring ranking remain unchanged.
-
-### Conversational UX and professional representation
-
-The agent separates conversation from factual grounding. Every valid textual
-request reaches the provider, including social, identity, unknown-data and
-follow-up questions. `AgentCore` still performs the current-query public-only
-retrieval, but an empty or partial retrieval package does not short-circuit
-conversation. The provider receives a detached public canonical profile
-context, specific public evidence when available, bounded transcript data and
-the current question, then handles natural-language interpretation and
-professional synthesis without inventing facts or ownership.
-
-The grounding boundary limits what may be asserted about Israel; it does not
-prevent natural explanation or favorable synthesis of supported facts. The
-public profile context is generated from `ProfileService.get_profile("public")`
-and measured at 48,359 characters / 48,921 UTF-8 bytes for the current
-canonical profile. A request may contain up to 256 replayed transcript
-messages, while only the most recent 8 messages and 8,000 characters are
-passed to generation. The conversation remains stateless and assistant
-transcript text is never evidence.
-The protected request body limit is 512 KiB (524,288 bytes), with the exact
-boundary accepted and the next byte rejected; individual messages remain
-limited to 12,000 characters and content parts to 32. Generic token suffix
-normalization remains limited to deterministic lexical retrieval and does not
-attempt to understand slang, aliases, follow-up intent or conversational
-coreference.
-
-The local product runner exercises the 30-turn Parley-style conversation with
-a fake provider by default:
-
-```bash
-python3 scripts/conversational_ux_product.py
-```
-
-It reports HTTP status, provider invocation, evidence count, request sizes at
-turns 10/20/30, transcript size, and semantic `REVIEW` markers for generated
-prose. It never uses an LLM-as-a-judge. A live run is opt-in only after
-`OPENAI_API_KEY` has been loaded into the process:
-
-```bash
-python3 scripts/conversational_ux_product.py --live
-```
-
-The live option makes one sequential local session of at most 30 requests and
-never retries. It does not print or log the provider credential.
-
-Phase 10 does not add conversation memory, provider streaming, new
-dependencies, or private Parley data. The SSE transport remains the existing
-materialized-response compatibility path.
-
-### Validación local del contenedor
-
-La siguiente validación se ejecutó localmente en macOS Apple Silicon `arm64`
-con Docker `29.7.2`; no es una validación de Cloud Run:
-
-- `docker build` pasó para `reto-banorte-cv-agent:phase9`.
-- Tamaño de imagen: `56,021,395` bytes (aproximadamente `56 MB`).
-- Usuario efectivo: `uid=999(app) gid=999(app) groups=999(app)`.
-- Con el puerto default `8080`, `/health` y `/ready` devolvieron `200`.
-- Con `PORT=9090`, `/health` devolvió `200`.
-- Con una `AGENT_API_KEY` fake: requests sin autorización y con Bearer
-  incorrecto devolvieron `401`; Bearer correcto permitió `/agent/prepare` con
-  retrieval público MCP válido.
-- `/v1/responses` autenticado con una pregunta sin evidencia pública devolvió
-  `200`, respuesta Open Responses válida y abstención segura sin requerir
-  `OPENAI_API_KEY` ni invocar al proveedor.
-- `docker stop -t 10` terminó limpiamente en aproximadamente `0.387 s`.
-- La ejecución `--read-only` mantuvo `/health` y `/ready` en `200`.
-- `/app/.env` estuvo ausente; `Config.Env` no incluyó `OPENAI_API_KEY` ni
-  `AGENT_API_KEY`; `docker history --no-trunc` no mostró credenciales de la
-  aplicación.
-
-La compatibilidad con Cloud Run continúa siendo una decisión de diseño
-preparatoria. El despliegue real y sus recursos están fuera del trabajo actual
-de compatibilidad de Phase 10.
-
-## Ejecución local
-
-```bash
-uvicorn app.api.main:app --reload
-```
-
-Ejemplo:
-
-```bash
-curl -X POST http://127.0.0.1:8000/agent/prepare \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"experiencia con MCP","max_results":5}'
-```
+~~~
 
 ## Roadmap
 
-0. Project foundation
-1. Professional knowledge base
-2. Profile retrieval layer
-3. Agent core
-4. HTTP API
-5. Open Responses compatibility
-6. LLM integration
-7. Evaluations
-8. Security and observability
-9. Containerization
-10. Parley compatibility and retrieval robustness
-11. Cloud deployment
-12. Documentation and demo
+Las fases completadas cubren:
 
-## Filosofía de arquitectura
+1. foundation;
+2. knowledge base;
+3. retrieval;
+4. AgentCore;
+5. HTTP API y Open Responses;
+6. grounded LLM generation;
+7. evals;
+8. security and observability;
+9. containerization;
+10. Parley compatibility, transcript replay y professional UX.
 
-Se seguirá una estrategia incremental:
+El siguiente paso de producto es operar y evolucionar el despliegue público con
+controles de plataforma apropiados. La implementación de nuevas capacidades
+debe preservar la frontera public-only y el comportamiento stateless.
 
-`build the smallest reliable layer first`
+## Filosofía
 
-Cada etapa debe tener una responsabilidad clara antes de introducir la siguiente. Las decisiones sobre proveedor de LLM, modelo, RAG, embeddings, vector database, cloud provider y framework de agentes se tomarán después, cuando existan suficientes requisitos.
+Elegí construir la capa confiable más pequeña antes de añadir complejidad:
+perfil estructurado, retrieval determinista, AgentCore, API, provider grounded,
+evaluaciones y controles operativos.
+
+La simplicidad aquí no es una renuncia a evolucionar. Es una forma de mantener
+las decisiones auditables: cada afirmación profesional tiene una fuente pública,
+cada límite tiene un contrato probado y cada integración puede cambiar sin mover
+la frontera de seguridad.
