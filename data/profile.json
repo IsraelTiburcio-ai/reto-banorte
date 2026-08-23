@@ -213,6 +213,19 @@
       "ownership": "participated_and_implemented",
       "problem": "La creación de información SEO y fichas de producto requería trabajo manual. Existía un GPT personalizado, pero el flujo todavía implicaba copiar y pegar resultados.",
       "solution": "Participó en la automatización del flujo para procesar información de catálogo con n8n, Google Sheets, Google Apps Script e inteligencia artificial.",
+      "workflow": [
+        "Realizó manualmente parte del proceso al inicio para entender el flujo.",
+        "Participó con su equipo en el diseño y ejecución de la automatización.",
+        "La experiencia manual ayudó a identificar pasos repetitivos, excepciones y criterios de calidad."
+      ],
+      "quality_control": [
+        "El aumento de volumen hizo necesario revisar calidad y adecuación del contenido.",
+        "Se utilizaron agentes auditores para apoyar la detección de fichas que requerían revisión."
+      ],
+      "learnings": [
+        "Escalar la generación también requiere mecanismos para evaluar y controlar la calidad.",
+        "El contenido de productos farmacéuticos debe tratarse con criterios regulatorios apropiados."
+      ],
       "technologies": [
         "n8n",
         "Google Sheets",
@@ -254,6 +267,15 @@
       "ownership": "developed",
       "problem": "La API o plataforma disponible no cubría adecuadamente la descarga de determinados reportes requeridos por el negocio.",
       "solution": "Desarrolló pipelines en Python para automatizar la extracción y el procesamiento de datos desde herramientas de negocio con limitaciones de exportación, incluyendo scraping cuando era necesario. Los datos se utilizaban posteriormente para alimentar un Data Warehouse.",
+      "business_input": "BI definía los datos que necesitaba; Israel decidía cómo obtenerlos, transformarlos y estructurarlos.",
+      "workflow": [
+        "Identificar y extraer los datos necesarios.",
+        "Limpiar y transformar los datos.",
+        "Crear o ajustar tablas para el consumo posterior.",
+        "Cargar los datos preparados en un Data Warehouse."
+      ],
+      "autonomy": "Tuvo autonomía sobre la forma técnica de resolver la extracción y transformación dentro de los requerimientos de BI.",
+      "continuity": "Algunas tablas y flujos continuaron utilizándose posteriormente.",
       "technologies": [
         "Python",
         "scraping",
@@ -278,6 +300,11 @@
       "ownership": "developed_and_left_operable",
       "problem": "El equipo de BI necesitaba analizar precios y competitividad de farmacias del mercado.",
       "solution": "Colaboró con BI en herramientas de scraping para consultar múltiples farmacias mediante SKU, nombre, URLs previamente identificadas o categorías.",
+      "personal_significance": "Es un proyecto que le genera orgullo porque convirtió búsquedas y recopilaciones manuales en una automatización reutilizable con utilidad para análisis de negocio.",
+      "learnings": [
+        "Cada sitio puede presentar obstáculos y estructuras diferentes.",
+        "Una automatización útil combina reto técnico, reducción de trabajo repetitivo e información aprovechable por otras áreas."
+      ],
       "sources_worked_with": [
         "Farmacias Guadalajara",
         "San Pablo",
@@ -329,7 +356,8 @@
         "pull requests"
       ],
       "claim_limits": [
-        "No se afirma que Israel haya desarrollado completamente el sistema en solitario."
+        "No se afirma que Israel haya desarrollado completamente el sistema en solitario.",
+        "La evolución de la tienda dependió de coordinación con otras áreas y responsabilidades compartidas."
       ],
       "evidence_level": "direct_professional_experience",
       "visibility": "public"
@@ -394,6 +422,22 @@
       "organization": "Prixz",
       "ownership": "participated_in_development_and_integration",
       "description": "Agente conversacional utilizado mediante WhatsApp durante la etapa de Innovación.",
+      "scope": "Ha participado de manera amplia y continua desde etapas tempranas en el comportamiento, las integraciones, las herramientas y la evolución del agente.",
+      "collaboration": [
+        "Catálogo",
+        "DevOps",
+        "QA",
+        "otras áreas de negocio y tecnología según la integración"
+      ],
+      "design_principles": [
+        "Las tools y MCPs funcionan como una frontera controlada entre el agente y los sistemas de negocio.",
+        "La solución debe minimizar la información que el agente necesita recibir.",
+        "La lógica sensible debe permanecer en la herramienta o servicio y no en el modelo."
+      ],
+      "learnings": [
+        "Separar conocimiento de instrucciones facilita mantener y ampliar un agente.",
+        "Rules, intents y diccionarios son útiles para controles determinísticos, pero un exceso puede reducir naturalidad y generalización."
+      ],
       "capabilities_related": [
         "búsqueda de productos",
         "recomendaciones de productos",
@@ -433,6 +477,16 @@
       "organization": "Prixz",
       "ownership": "configured_and_modified",
       "description": "Participó en la configuración y modificación del agente de inteligencia artificial utilizado en Crisp.",
+      "knowledge_architecture": "Aprendió a separar las instrucciones de comportamiento de las fuentes de conocimiento.",
+      "knowledge_sources": [
+        "Q&A",
+        "documentos",
+        "hojas de cálculo",
+        "Markdown",
+        "PDFs",
+        "contenido web"
+      ],
+      "maintainability_learning": "Valora que el conocimiento pueda actualizarse de forma estructurada sin modificar continuamente la lógica conversacional.",
       "contributions": [
         "entrenamiento y configuración",
         "comportamiento",
@@ -452,6 +506,24 @@
       "organization": "Prixz",
       "ownership": "designed_and_developed",
       "description": "Servidor Model Context Protocol desarrollado en Python para permitir que un agente de Contact Center consulte estados de pedido.",
+      "origin": "Israel propuso utilizar MCP para resolver consultas recurrentes de estado de pedido que todavía requerían intervención manual.",
+      "role": "Desarrolló directamente este MCP y tuvo responsabilidad sobre sus principales decisiones técnicas.",
+      "decisions": [
+        "Exponer una capacidad controlada para consultar datos operativos.",
+        "Filtrar los datos necesarios y aplicar reglas de negocio antes de devolver una respuesta estructurada."
+      ],
+      "challenges": [
+        "Las combinaciones de productos, entregas, logística y estados podían producir muchos casos diferentes.",
+        "Cada parte de un pedido podía requerir una interpretación independiente para evitar mezclar estados."
+      ],
+      "validation": [
+        "Pruebas locales con múltiples pedidos y combinaciones.",
+        "Contraste iterativo con personas de Contact Center con conocimiento operativo."
+      ],
+      "learnings": [
+        "Un discovery inicial más profundo sobre reglas, excepciones y combinaciones habría reducido iteraciones posteriores."
+      ],
+      "impact": "Implementación temprana que ayudó a demostrar internamente el valor de MCP como patrón para conectar agentes con capacidades de negocio.",
       "technologies": [
         "Python",
         "Model Context Protocol",
@@ -466,7 +538,8 @@
       "operational_context": "El agente de Contact Center dentro del cual participa este MCP procesa más de 1,000 conversaciones diarias. Ese dato corresponde al agente y no se atribuye directamente al MCP.",
       "claim_limits": [
         "No se afirma que el MCP procese directamente más de 1,000 consultas diarias.",
-        "No se incluyen detalles de sistemas internos, mecanismos de acceso, endpoints ni credenciales."
+        "No se incluyen detalles de sistemas internos, mecanismos de acceso, endpoints ni credenciales.",
+        "No se atribuye a Israel la autoría de los MCPs desarrollados posteriormente por otros equipos."
       ],
       "evidence_level": "direct_professional_experience",
       "visibility": "public"
@@ -520,6 +593,7 @@
       "ownership": "designed_and_developed",
       "problem": "ClaudIA podía generar un carrito o cotización, pero el usuario llegaba al checkout sin estar autenticado y debía proporcionar nuevamente información para comprar.",
       "solution": "Se desarrolló una solución OTP o magic link que puede autenticar al usuario, conservar el contexto del carrito, abrir el sitio y reducir fricción antes de comprar.",
+      "user_experience_goal": "Reducir la fricción de acceso mediante un flujo passwordless con OTP o enlace de acceso.",
       "flow": [
         "el usuario proporciona su correo",
         "recibe un enlace",
@@ -527,10 +601,22 @@
         "accede sin ingresar contraseña"
       ],
       "architecture": "arquitectura hexagonal",
+      "architecture_reasoning": "Se eligió para separar la lógica central de autenticación de futuras integraciones y reutilizar la solución sin reconstruirla para cada canal.",
       "evolution": "La arquitectura fue reutilizada para construir Fast Login o passwordless login en Prixz.",
       "first_integration": "La primera integración se realizó alrededor de un flujo de acceso a cuentas.",
+      "security_focus": [
+        "rate limiting",
+        "expiración de enlaces",
+        "control de reutilización",
+        "validación del destinatario",
+        "protección de datos y comunicación"
+      ],
+      "ownership_detail": "Israel implementó la solución de extremo a extremo a nivel de desarrollo e integración.",
+      "mentorship": "Su Tech Lead lo orientó en decisiones de diseño y en el razonamiento detrás de la arquitectura hexagonal.",
+      "learning": "El proyecto fortaleció su criterio sobre separación de responsabilidades, reutilización y extensibilidad.",
       "claim_limits": [
-        "La reutilización en otros escenarios se describe como posibilidad futura, no como funcionalidad existente."
+        "La reutilización en otros escenarios se describe como posibilidad futura, no como funcionalidad existente.",
+        "Los controles de seguridad se describen a nivel conceptual; no se publican configuraciones internas."
       ],
       "evidence_level": "direct_professional_experience",
       "visibility": "public"
@@ -1008,10 +1094,11 @@
       "name": "AWS",
       "level": "working_knowledge",
       "contexts": [
-        "cloud computing"
+        "cloud computing",
+        "arquitecturas de agentes"
       ],
       "notes": [
-        "Experiencia o familiaridad práctica con AWS en el nivel indicado."
+        "Familiaridad y exposición técnica a sesiones sobre arquitecturas de agentes y sistemas multiagente."
       ],
       "claim_limits": [
         "No se infieren servicios específicos de AWS porque no están documentados."
@@ -1022,17 +1109,19 @@
     {
       "id": "gcp",
       "name": "GCP",
-      "level": "conceptual_knowledge",
+      "level": "basic_practical_familiarity",
       "contexts": [
-        "cloud computing"
+        "cloud computing",
+        "despliegue del CV Agent"
       ],
       "notes": [
-        "No se reporta experiencia práctica hands-on todavía."
+        "Cuenta con experiencia práctica inicial desplegando este CV Agent en Google Cloud utilizando herramientas de la plataforma y su terminal."
       ],
       "claim_limits": [
-        "No presentar GCP como experiencia práctica."
+        "Presentar como familiaridad práctica inicial, no como especialidad cloud, arquitectura cloud o experiencia amplia de producción.",
+        "No se infieren servicios específicos de GCP más allá del despliegue documentado."
       ],
-      "evidence_level": "self_reported",
+      "evidence_level": "direct_project_experience",
       "visibility": "public"
     },
     {
@@ -1355,11 +1444,189 @@
         "evidence_level": "self_reported"
       }
     ],
+    "decision_making": {
+      "approach": [
+        "Investiga si existe una solución conocida antes de reinventar el problema.",
+        "Compara alternativas con argumentos, pruebas y restricciones del contexto.",
+        "Busca la solución más simple que resuelva correctamente el problema."
+      ],
+      "criteria": [
+        "tiempo",
+        "riesgo",
+        "mantenibilidad",
+        "despliegue",
+        "costo",
+        "negocio",
+        "capacidad del equipo"
+      ],
+      "principle": "Una solución más sofisticada no es automáticamente mejor; la decisión debe ajustarse al problema y sus restricciones.",
+      "evidence": [
+        "otp-fast-login",
+        "mcp-order-status",
+        "competitive-intelligence"
+      ],
+      "evidence_level": "self_reported"
+    },
+    "collaboration": {
+      "style": "Coordina de forma directa y práctica, llega con el problema bien planteado y respeta las prioridades y disponibilidad de otras áreas.",
+      "cross_functional_exposure": [
+        "captación y marketing",
+        "monetización",
+        "e-commerce",
+        "datos",
+        "innovación",
+        "DevOps",
+        "BI",
+        "QA"
+      ],
+      "principles": [
+        "El ownership técnico y la colaboración no son contradictorios.",
+        "Las propuestas se validan con usuarios expertos, áreas relacionadas o una referencia técnica cuando corresponde.",
+        "El objetivo de un desacuerdo técnico es llegar a una decisión justificable, no imponer una idea."
+      ],
+      "evidence": [
+        "mcp-order-status",
+        "claudia",
+        "farmacia-la-paz-shopify"
+      ],
+      "evidence_level": "direct_professional_experience"
+    },
+    "validation_practice": {
+      "methods": [
+        "tests desde el desarrollo",
+        "pruebas locales",
+        "pruebas end-to-end",
+        "ambientes de prueba",
+        "logs y observabilidad",
+        "Postman",
+        "Insomnia"
+      ],
+      "principle": "No considera suficiente que el código ejecute; valida el flujo completo y el comportamiento esperado.",
+      "evidence": [
+        "mcp-order-status",
+        "farmacia-la-paz-shopify",
+        "git-and-development-workflow"
+      ],
+      "evidence_level": "direct_project_experience"
+    },
     "claim_limits": [
       "Estas entradas describen patrones de trabajo respaldados por la trayectoria; no son diagnósticos ni afirmaciones psicológicas."
     ],
     "visibility": "public",
     "evidence_level": "self_reported"
+  },
+  "professional_growth": {
+    "visibility": "public",
+    "evidence_level": "self_reported",
+    "career_transition": "Prixz fue su primer trabajo formal; la universidad y los hackathons aportaron la base, mientras el trabajo real amplió la escala, las restricciones y la responsabilidad de las soluciones.",
+    "professional_learning": [
+      "resolver problemas con impacto real",
+      "dialogar y coordinarse con distintas áreas",
+      "defender y presentar decisiones técnicas",
+      "procesar feedback",
+      "trabajar con restricciones de negocio",
+      "asumir responsabilidad sobre soluciones utilizadas por otras personas"
+    ],
+    "strengths": [
+      {
+        "id": "python-as-primary-strength",
+        "statement": "Python es su principal fortaleza técnica y la utiliza en automatización, scraping, pipelines, APIs, MCP y procesamiento de datos.",
+        "evidence": [
+          "python",
+          "metrilo-data-pipelines",
+          "competitive-intelligence",
+          "mcp-order-status"
+        ],
+        "evidence_level": "direct_professional_experience"
+      },
+      {
+        "id": "new-problem-discovery",
+        "statement": "Disfruta comprender problemas nuevos, investigar sus reglas y convertirlos en soluciones utilizables.",
+        "evidence": [
+          "mcp-order-status",
+          "catalog-ai-automation",
+          "metrilo-data-pipelines"
+        ],
+        "evidence_level": "self_reported"
+      }
+    ],
+    "growth_areas": [
+      {
+        "id": "cloud-infrastructure",
+        "current_calibration": "basic_practical_familiarity",
+        "statement": "Quiere profundizar en cloud, servidores, despliegues e infraestructura para sistemas de IA.",
+        "evidence": [
+          "gcp",
+          "aws"
+        ],
+        "claim_limits": [
+          "No se presenta como especialista cloud ni como arquitecto cloud.",
+          "AWS se mantiene como familiaridad y exposición técnica; no se afirma experiencia productiva amplia."
+        ],
+        "evidence_level": "self_reported"
+      },
+      {
+        "id": "discovery-depth",
+        "statement": "Quiere mejorar la profundidad del discovery inicial para identificar antes reglas, excepciones y dependencias.",
+        "evidence": [
+          "mcp-order-status",
+          "catalog-ai-automation"
+        ],
+        "evidence_level": "self_reported"
+      },
+      {
+        "id": "multi_project-prioritization",
+        "statement": "Quiere seguir mejorando la priorización cuando maneja varias iniciativas simultáneamente.",
+        "evidence_level": "self_reported"
+      }
+    ],
+    "role_fit": "Aporta especialmente en innovación e IA aplicada cuando puede combinar problemas nuevos, integración de sistemas, autonomía progresiva y mentoría técnica.",
+    "leadership": {
+      "interest": "Tiene interés futuro en desarrollar capacidades de liderazgo.",
+      "current_calibration": "No se presenta como líder técnico senior actual; prioriza seguir fortaleciendo su profundidad técnica."
+    }
+  },
+  "professional_narratives": {
+    "visibility": "public",
+    "evidence_level": "self_reported",
+    "claudia_communication_learning": {
+      "context": "ClaudIA fue iniciado por un colega e Israel se incorporó durante una etapa temprana.",
+      "challenge": "Al inicio faltó alineación suficiente sobre decisiones y evolución del proyecto.",
+      "learning": [
+        "La comunicación entre personas forma parte de la calidad técnica.",
+        "Las decisiones deben discutirse y alinearse antes de implementar cambios."
+      ],
+      "evidence_level": "historical_experience"
+    },
+    "ai_assisted_development_evolution": {
+      "initial_state": "Al principio utilizaba agentes de desarrollo con poco contexto y prompts poco estructurados.",
+      "current_practice": [
+        "dividir problemas grandes",
+        "definir milestones",
+        "documentar decisiones",
+        "delimitar tareas y restricciones antes de delegar"
+      ],
+      "learning": "Delegar generación de código no delega el criterio, la arquitectura, la revisión, las pruebas ni la responsabilidad sobre el resultado.",
+      "evidence_level": "self_reported"
+    },
+    "agent_simplification_learning": {
+      "observation": "La acumulación de reglas, intents, diccionarios y parches puede volver un agente difícil de mantener y menos natural.",
+      "principle": "Mantener controles determinísticos donde importan la seguridad, el negocio o el acceso a datos, y evitar usarlos para modelar todas las formas de lenguaje.",
+      "evidence_level": "self_reported"
+    },
+    "pragmatic_decision_making": {
+      "principle": "Más sofisticación no equivale automáticamente a una mejor solución.",
+      "evidence_level": "self_reported"
+    },
+    "proud_project": {
+      "project_id": "competitive-intelligence",
+      "reason": "Le resulta especialmente significativo porque automatizó búsquedas y extracción de productos, precios y otros datos que antes requerían trabajo manual, con utilidad para análisis de negocio.",
+      "evidence_level": "self_reported"
+    },
+    "claim_limits": [
+      "No se incorpora una historia específica de una primera solución replanteada porque no fue confirmada explícitamente.",
+      "Las narrativas describen aprendizajes declarados y no deben convertirse en ownership absoluto sobre proyectos colaborativos."
+    ]
   },
   "agent_policies": [
     {

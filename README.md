@@ -268,7 +268,7 @@ professional synthesis without inventing facts or ownership.
 The grounding boundary limits what may be asserted about Israel; it does not
 prevent natural explanation or favorable synthesis of supported facts. The
 public profile context is generated from `ProfileService.get_profile("public")`
-and measured at 36,899 characters / 37,305 UTF-8 bytes for the current
+and measured at 48,359 characters / 48,921 UTF-8 bytes for the current
 canonical profile. A request may contain up to 128 replayed transcript
 messages, while only the most recent 8 messages and 8,000 characters are
 passed to generation. The conversation remains stateless and assistant
