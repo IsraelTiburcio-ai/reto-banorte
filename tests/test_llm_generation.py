@@ -11,7 +11,6 @@ from openai import APIConnectionError, APITimeoutError, AuthenticationError, Rat
 from app.agent.core import AgentCore
 from app.agent.policy import DEFAULT_AGENT_POLICY
 from app.api.main import create_app
-from app.api.open_responses_formatter import INSUFFICIENT_EVIDENCE_TEXT
 from app.api.open_responses_schemas import OpenResponsesResponse
 from app.llm.errors import (
     EmptyProviderResponseError,
@@ -173,18 +172,19 @@ class LLMGenerationTests(unittest.TestCase):
         self.assertEqual(generator.requests[0].query, "MCP")
         self.assertTrue(all(item.data.get("visibility") == "public" for item in generator.requests[0].evidence))
 
-    def test_insufficient_evidence_skips_provider_and_uses_fixed_fallback(self) -> None:
+    def test_empty_targeted_evidence_still_reaches_provider_with_public_context(self) -> None:
         generator = RecordingGenerator()
         client = TestClient(create_app(text_generator=generator))
 
         response = client.post("/v1/responses", json={"input": "no such profile topic"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json()["output"][0]["content"][0]["text"],
-            INSUFFICIENT_EVIDENCE_TEXT,
-        )
-        self.assertEqual(generator.requests, [])
+        self.assertEqual(len(generator.requests), 1)
+        request = generator.requests[0]
+        self.assertEqual(request.evidence, ())
+        self.assertIn("identity", request.public_profile)
+        self.assertNotIn("internal_summary", build_model_input(request))
+        self.assertNotIn("do_not_expose", build_model_input(request))
 
     def test_llm_text_replaces_phase5_formatter_and_preserves_schema(self) -> None:
         generator = RecordingGenerator("LLM answer grounded in evidence")
@@ -276,10 +276,8 @@ class LLMGenerationTests(unittest.TestCase):
 
         generator.generate(request)
 
-        self.assertTrue(
-            "Answer using ONLY" in responses.kwargs["instructions"]
-            or "ÚNICAMENTE" in responses.kwargs["instructions"]
-        )
+        instructions = str(responses.kwargs["instructions"]).casefold()
+        self.assertTrue("answer using only" in instructions or "únicamente" in instructions)
         self.assertNotIn("assistant history", responses.kwargs["instructions"])
         self.assertIn("assistant history", responses.kwargs["input"])
         self.assertIn("current_user_question", responses.kwargs["input"])

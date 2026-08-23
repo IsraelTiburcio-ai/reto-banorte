@@ -55,9 +55,12 @@ added without changing the Phase 5 response contract.
 
 ## Insufficient evidence
 
-When `PreparedAgentTurn.status` is `insufficient_evidence`, the adapter does
-not call the provider. It returns the fixed safe message from Phase 5. This
-reduces cost and hallucination risk while preserving deterministic behavior.
+When `PreparedAgentTurn.status` is `insufficient_evidence`, the adapter still
+calls the provider for a valid textual request. The generation request carries
+the detached public canonical profile context and an empty or partial public
+evidence package, allowing natural answers such as “No tengo ese dato exacto
+registrado” without turning a retrieval miss into a universal factual claim.
+The provider prompt remains responsible for grounding and abstention.
 
 ## Transcript handling
 

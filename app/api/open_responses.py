@@ -5,17 +5,12 @@ from __future__ import annotations
 import json
 import re
 import time
-import unicodedata
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 
 from app.agent.core import AgentCore, AgentInputError
-from app.api.open_responses_formatter import (
-    INSUFFICIENT_EVIDENCE_TEXT,
-    deterministic_response_for,
-)
 from app.api.open_responses_schemas import (
     OpenResponsesError,
     OpenResponsesErrorEnvelope,
@@ -85,41 +80,6 @@ class TranscriptMessage:
     text: str
 
 
-_FOLLOWUP_DEMONSTRATIVES = frozenset(
-    {
-        "ese",
-        "esa",
-        "eso",
-        "esos",
-        "esas",
-        "ello",
-        "ellos",
-        "ellas",
-        "estos",
-        "estas",
-        "aquel",
-        "aquella",
-        "aquellos",
-        "aquellas",
-    }
-)
-_FOLLOWUP_WHICH_TERMS = frozenset({"cual", "cuales"})
-_FOLLOWUP_ANAPHORIC_VERBS = frozenset(
-    {
-        "usaba",
-        "usabas",
-        "utilizaba",
-        "utilizabas",
-        "empleaba",
-        "empleabas",
-        "gano",
-        "ganaron",
-        "fue",
-        "fueron",
-    }
-)
-
-
 class OpenResponsesRequestError(ValueError):
     """A request error that belongs only to the Open Responses endpoint."""
 
@@ -184,18 +144,8 @@ class OpenResponsesAdapter:
             current_user_query, transcript, input_chars = self._extract_generation_context(
                 request.input
             )
-            deterministic_response = deterministic_response_for(current_user_query)
-            if deterministic_response is not None:
-                response_text, agent_status = deterministic_response
-                set_request_fields(
-                    agent_status=agent_status,
-                    input_chars=input_chars,
-                    provider_invoked=False,
-                    provider_model=None,
-                )
-            else:
-                turn = self._prepare_turn(current_user_query, transcript)
-                response_text = self._generate_text(turn, transcript, input_chars)
+            turn = self._prepare_turn(current_user_query, transcript)
+            response_text = self._generate_text(turn, transcript, input_chars)
         except OpenResponsesRequestError as exc:
             set_request_fields(error_category=exc.code)
             return self.error_response(
@@ -255,67 +205,10 @@ class OpenResponsesAdapter:
         current_user_query: str,
         transcript: tuple[ConversationMessage, ...],
     ) -> PreparedAgentTurn:
-        """Use bounded prior user text only as retrieval context for follow-ups."""
+        """Retrieve only the current question; the provider receives the transcript."""
 
-        turn = self._agent_core.prepare(current_user_query)
-        if not self._is_context_dependent_followup(current_user_query):
-            return turn
-
-        prior_user_text = [
-            message.text
-            for message in transcript
-            if message.role == "user"
-        ][-2:]
-        if not prior_user_text:
-            return turn
-
-        contextual_query = " ".join((*prior_user_text, current_user_query))
-        contextual_turn = self._agent_core.prepare(contextual_query)
-        if contextual_turn.status != "ready":
-            return turn
-        # Keep the user-facing question current while using only prior user
-        # text to recover public evidence for a stateless follow-up.
-        return replace(contextual_turn, query=current_user_query)
-
-    @staticmethod
-    def _is_context_dependent_followup(query: str) -> bool:
-        decomposed = unicodedata.normalize("NFKD", query)
-        without_accents = "".join(
-            character
-            for character in decomposed
-            if not unicodedata.combining(character)
-        )
-        normalized = re.sub(r"[^\w]+", " ", without_accents.casefold()).split()
-        tokens = set(normalized)
-        which_terms = tokens & _FOLLOWUP_WHICH_TERMS
-        has_demonstrative = bool(tokens & _FOLLOWUP_DEMONSTRATIVES)
-        has_anaphoric_verb = bool(tokens & _FOLLOWUP_ANAPHORIC_VERBS)
-        has_explicit_topic = OpenResponsesAdapter._has_explicit_topic(query)
-        if which_terms and has_explicit_topic:
-            return False
-        return bool(
-            has_demonstrative
-            or (which_terms and ("de" in tokens or has_anaphoric_verb))
-            or (
-                {"para", "que"} <= tokens
-                and bool(tokens & {"lo", "la", "los", "las"})
-                and has_anaphoric_verb
-            )
-        )
-
-    @staticmethod
-    def _has_explicit_topic(query: str) -> bool:
-        """Recognize an explicit named topic without maintaining a topic list."""
-
-        words = re.findall(r"[\w-]+", query, flags=re.UNICODE)
-        for index, word in enumerate(words):
-            if index == 0:
-                continue
-            if "-" in word or (word.isupper() and len(word) > 1):
-                return True
-            if word[:1].isupper() and word.casefold() not in {"cuál", "cual", "cuáles", "cuales"}:
-                return True
-        return False
+        del transcript
+        return self._agent_core.prepare(current_user_query)
 
     @staticmethod
     def _serialize_sse(response: dict[str, object]) -> str:
@@ -468,57 +361,49 @@ class OpenResponsesAdapter:
             "agent_status": turn.status,
             "provider_model": provider_model,
         }
-        if turn.status == "insufficient_evidence":
-            generation_fields["provider_invoked"] = False
         log_event("generation_started", **generation_fields)
-        if turn.status == "insufficient_evidence":
-            text = INSUFFICIENT_EVIDENCE_TEXT
-        else:
-            try:
-                text = self._text_generator.generate(
-                    TextGenerationRequest(
-                        query=turn.query,
-                        transcript=transcript,
-                        evidence=turn.evidence,
-                        policy=turn.policy,
-                    )
+        try:
+            text = self._text_generator.generate(
+                TextGenerationRequest(
+                    query=turn.query,
+                    transcript=transcript,
+                    evidence=turn.evidence,
+                    policy=turn.policy,
+                    public_profile=self._agent_core.public_profile(),
                 )
-            except TextGenerationError as exc:
-                provider_invoked = self._provider_request_attempted()
-                set_request_fields(provider_invoked=provider_invoked)
-                log_event(
-                    "generation_failed",
-                    agent_status=turn.status,
-                    duration_ms=round(
-                        (time.perf_counter() - generation_started) * 1000, 2
-                    ),
-                    error_category=exc.code,
-                    provider_invoked=provider_invoked,
-                    provider_model=provider_model,
-                )
-                raise
-            except Exception:
-                provider_invoked = self._provider_request_attempted()
-                set_request_fields(provider_invoked=provider_invoked)
-                log_event(
-                    "generation_failed",
-                    agent_status=turn.status,
-                    duration_ms=round(
-                        (time.perf_counter() - generation_started) * 1000, 2
-                    ),
-                    error_category="internal_error",
-                    provider_invoked=provider_invoked,
-                    provider_model=provider_model,
-                )
-                raise
+            )
+        except TextGenerationError as exc:
+            provider_invoked = self._provider_request_attempted()
+            set_request_fields(provider_invoked=provider_invoked)
+            log_event(
+                "generation_failed",
+                agent_status=turn.status,
+                duration_ms=round(
+                    (time.perf_counter() - generation_started) * 1000, 2
+                ),
+                error_category=exc.code,
+                provider_invoked=provider_invoked,
+                provider_model=provider_model,
+            )
+            raise
+        except Exception:
+            provider_invoked = self._provider_request_attempted()
+            set_request_fields(provider_invoked=provider_invoked)
+            log_event(
+                "generation_failed",
+                agent_status=turn.status,
+                duration_ms=round(
+                    (time.perf_counter() - generation_started) * 1000, 2
+                ),
+                error_category="internal_error",
+                provider_invoked=provider_invoked,
+                provider_model=provider_model,
+            )
+            raise
 
         if not isinstance(text, str) or not text.strip():
             error = EmptyProviderResponseError()
-            provider_invoked = (
-                False
-                if turn.status == "insufficient_evidence"
-                else self._provider_request_attempted()
-            )
+            provider_invoked = self._provider_request_attempted()
             set_request_fields(provider_invoked=provider_invoked)
             log_event(
                 "generation_failed",
@@ -531,11 +416,7 @@ class OpenResponsesAdapter:
                 provider_model=provider_model,
             )
             raise error
-        provider_invoked = (
-            False
-            if turn.status == "insufficient_evidence"
-            else self._provider_request_attempted()
-        )
+        provider_invoked = self._provider_request_attempted()
         set_request_fields(provider_invoked=provider_invoked)
         log_event(
             "generation_completed",

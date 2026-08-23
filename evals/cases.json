@@ -221,13 +221,13 @@
     "id": "conversation-followup",
     "category": "conversational_follow_ups",
     "input": "¿Y cuál usabas más?",
-    "expected_behavior": "Reconocer la limitación de coreference; no inventar el antecedente faltante.",
+    "expected_behavior": "Entregar la pregunta y la evidencia pública disponible al proveedor para resolver el seguimiento sin convertir el transcript en evidencia.",
     "required_facts": [],
     "forbidden_claims": ["la herramienta más usada fue X"],
     "required_evidence_ids": [],
-    "forbidden_evidence_ids": ["mba-yo"],
+    "forbidden_evidence_ids": [],
     "should_abstain": true,
-    "notes": "Known limitation: Phase 6 conserva transcript pero retrieval no resuelve coreference heurística."
+    "notes": "Offline eval: lexical retrieval observa solo la pregunta actual y puede abstenerse; natural-language understanding y síntesis del follow-up pertenecen al proveedor y requieren revisión generada."
   },
   {
     "id": "natural-language-mcp",

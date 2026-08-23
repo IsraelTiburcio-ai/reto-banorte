@@ -16,6 +16,15 @@ class StubProfileService(ProfileService):
         self.results = results
         self.calls: list[tuple[str, str]] = []
 
+    def get_profile(self, visibility: str = "public") -> dict[str, object]:
+        self._validate_policy(visibility)  # type: ignore[attr-defined]
+        return {
+            "identity": {
+                "visibility": "public",
+                "full_name": "Test Profile",
+            }
+        }
+
     def search(self, query: str, visibility: str = "public") -> list[SearchResult]:  # type: ignore[override]
         self.calls.append((query, visibility))
         return self.results

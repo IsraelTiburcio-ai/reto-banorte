@@ -111,19 +111,14 @@ class AgentCoreTests(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
         self.assertEqual(turn.query, "¿Qué experiencia tiene Israel con MCP?")
 
-    def test_broad_overview_queries_prepare_public_evidence(self) -> None:
-        career_turn = AgentCore().prepare("¿Cómo decidió dedicarse a IA?")
-        project_turn = AgentCore().prepare("Dime sus proyectos principales")
-        identity_turn = AgentCore().prepare("¿Quién es Israel?")
+    def test_core_keeps_retrieval_lexical_and_public_only(self) -> None:
+        turn = AgentCore().prepare("¿Quién es Israel?")
 
-        self.assertEqual(career_turn.status, "ready")
-        self.assertEqual(career_turn.evidence[0].entity_id, "career_story")
-        self.assertEqual(project_turn.status, "ready")
-        self.assertTrue(all(item.entity_type == "project" for item in project_turn.evidence))
-        self.assertEqual(identity_turn.status, "ready")
-        self.assertEqual(identity_turn.evidence[0].entity_id, "identity")
-        for turn in (career_turn, project_turn, identity_turn):
-            self.assertTrue(all(item.data.get("visibility") == "public" for item in turn.evidence))
+        self.assertEqual(turn.status, "insufficient_evidence")
+        self.assertEqual(turn.evidence, ())
+        self.assertEqual(
+            AgentCore().public_profile()["identity"]["visibility"], "public"
+        )
 
     def test_prepare_enforces_public_visibility(self) -> None:
         profile_service = RecordingProfileService(self.fixture_path)

@@ -38,7 +38,7 @@ Flujo actual:
 
 `ProfileService` conserva la responsabilidad de enforcement de visibilidad y `AgentCore` continúa siendo public-only. La API no implementa retrieval ni reglas de exposición propias.
 
-El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto grounded solo cuando existe evidencia; sin evidencia conserva el fallback fijo y evita la llamada al proveedor. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
+El subset soporta texto síncrono, input string, mensajes `user`/`assistant`, partes `input_text` y replay estructural sin estado. Phase 6 genera texto mediante el provider en cada request textual válido, incluso cuando el retrieval dirigido está vacío; recibe el contexto público base y evidencia específica cuando existe. Los hechos sobre Israel siguen limitados al contexto/evidence públicos y grounded. `stream` ausente, `null` o `false` devuelve JSON; `stream=true` devuelve SSE con la respuesta textual completa materializada antes de emitirla. Rechaza `system`/`developer`, tools, multimodalidad, persistencia y capacidades conversacionales avanzadas.
 
 ## Open Responses subset
 
@@ -61,7 +61,7 @@ export OPENAI_MODEL='gpt-5.6-luna'  # opcional; este es el default
 
 `model` en la request es el identificador lógico externo y no selecciona el modelo del proveedor. `OPENAI_MODEL` controla el modelo OpenAI. Nunca publiques API keys en el repositorio, README, logs o tests.
 
-El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe texto grounded únicamente con evidencia pública aprobada por `AgentCore`.
+El generador usa la Responses API oficial con `store=false`, sin tools, token streaming, multimodalidad, memoria persistente ni fallback automático a otro proveedor. El SSE del endpoint es streaming de transporte de una respuesta ya completa; no activa streaming del provider. El modelo lógico recibe el contexto público base y la evidencia pública aprobada por `AgentCore`; cualquier hecho sobre Israel debe permanecer grounded en esos datos.
 
 ## Phase 7 — Evals
 
@@ -124,15 +124,15 @@ retrieval, grounding ni visibilidad fuera de `AgentCore` y `ProfileService`:
   ruta, estado, duración, categoría de error, estado del agente y modelo del
   proveedor. No registran payloads, respuestas, evidencia, headers, cookies ni
   secretos.
-- El límite real del body es 64 KiB (65,536 bytes) en los dos POST protegidos,
+- El límite real del body es 256 KiB (262,144 bytes) en los dos POST protegidos,
   incluso sin `Content-Length` o cuando llegan varios chunks. Además se
   rechaza texto simple, mensaje o parte de contenido mayor a 12,000 caracteres,
-  transcripts de más de 32 mensajes y mensajes de más de 32 partes. Un transcript histórico
+  transcripts de más de 128 mensajes y mensajes de más de 32 partes. Un transcript histórico
   válido puede superar el antiguo total agregado mientras el body permanezca
-  dentro de 64 KiB; antes de retrieval/generación se conserva solo una ventana
+  dentro de 256 KiB; antes de retrieval/generación se conserva solo una ventana
   reciente de hasta 8 mensajes y 8,000 caracteres de historial. La pregunta
   actual se conserva completa y viaja una sola vez como `current_user_question`.
-- El límite de 64 KiB no es global: las rutas públicas conservan el `receive`
+- El límite de 256 KiB no es global: las rutas públicas conservan el `receive`
   ASGI original y no consumen ni reconstruyen su body mediante este middleware.
 - `provider_invoked` solo es `true` cuando el generador confirma un intento
   outbound al proveedor; `input_chars` es el total de texto aceptado del
@@ -230,11 +230,12 @@ transport metadata, then discarded before `AgentCore` or the provider prompt;
 only message roles and text remain. `system` and `developer` roles,
 stateful continuation, and unsupported capabilities remain rejected.
 
-Standalone greetings (`hola`, `hello`, `hey`, and the supported Spanish
-greetings), thanks, goodbyes, and a small set of agent meta questions use fixed
-local responses without retrieval or a provider call. Sensitive and explicit
-out-of-scope prompts receive a safe domain redirect. A greeting followed by a
-question uses the normal grounded pipeline.
+All valid textual requests use the normal grounded pipeline and invoke the
+configured provider, including greetings, identity, social, out-of-scope and
+follow-up questions. The adapter does not contain a conversational intent
+classifier or a catalog of fixed answers. Safety and visibility remain
+enforced by the trusted policy, `AgentCore`, `ProfileService` and provider
+instructions.
 
 The auditable pre-Banorte QA fixture is `evals/pre_banorte_cases.json` (30
 cases). Run `python3 scripts/pre_banorte_smoke.py` for the default offline
@@ -242,18 +243,61 @@ validation; it makes zero HTTP/provider calls and does not use an LLM judge.
 Set `PRE_BANORTE_BASE_URL` only when an authorized transport smoke run is
 intended; generated-answer cases are reported for manual review.
 
-The lexical retriever also has bounded deterministic overview modes for
-identity, career, education, cloud skills, academic-project,
-professional-project, and project questions in Spanish and English. Clearly
-referential follow-ups may use up to three user messages total (the last two
-prior user messages plus the current one) to enrich retrieval. Independent
-questions are not retried with prior context. Assistant text is never treated
-as evidence or retrieval instructions. A bounded recent transcript may still be
-provided to generation as conversation data, but every factual claim must come
-from public evidence. Results remain ordered public evidence copies only; they
-do not infer dates, ownership, relevance, skills, or technologies that are not
-present in the profile.
+The lexical retriever keeps exact ID, name/title, substring, context and
+deterministic token matching for the current query. It does not classify
+intent, resolve coreference, or maintain a second conversational vocabulary.
+Assistant text is never treated as evidence or retrieval instructions. A
+bounded recent transcript is provided to generation as conversation data, but
+every factual claim must come from the public context or public evidence
+returned by `ProfileService`. Results remain ordered public evidence copies
+only; they do not infer dates, ownership, relevance, skills, or technologies
+that are not present in the profile.
 Exact IDs, names, titles, and existing substring ranking remain unchanged.
+
+### Conversational UX and professional representation
+
+The agent separates conversation from factual grounding. Every valid textual
+request reaches the provider, including social, identity, unknown-data and
+follow-up questions. `AgentCore` still performs the current-query public-only
+retrieval, but an empty or partial retrieval package does not short-circuit
+conversation. The provider receives a detached public canonical profile
+context, specific public evidence when available, bounded transcript data and
+the current question, then handles natural-language interpretation and
+professional synthesis without inventing facts or ownership.
+
+The grounding boundary limits what may be asserted about Israel; it does not
+prevent natural explanation or favorable synthesis of supported facts. The
+public profile context is generated from `ProfileService.get_profile("public")`
+and measured at 36,899 characters / 37,305 UTF-8 bytes for the current
+canonical profile. A request may contain up to 128 replayed transcript
+messages, while only the most recent 8 messages and 8,000 characters are
+passed to generation. The conversation remains stateless and assistant
+transcript text is never evidence.
+The protected request body limit is 256 KiB (262,144 bytes), with the exact
+boundary accepted and the next byte rejected; individual messages remain
+limited to 12,000 characters and content parts to 32. Generic token suffix
+normalization remains limited to deterministic lexical retrieval and does not
+attempt to understand slang, aliases, follow-up intent or conversational
+coreference.
+
+The local product runner exercises the 30-turn Parley-style conversation with
+a fake provider by default:
+
+```bash
+python3 scripts/conversational_ux_product.py
+```
+
+It reports HTTP status, provider invocation, evidence count, request sizes at
+turns 10/20/30, transcript size, and semantic `REVIEW` markers for generated
+prose. It never uses an LLM-as-a-judge. A live run is opt-in only after
+`OPENAI_API_KEY` has been loaded into the process:
+
+```bash
+python3 scripts/conversational_ux_product.py --live
+```
+
+The live option makes one sequential local session of at most 30 requests and
+never retries. It does not print or log the provider credential.
 
 Phase 10 does not add conversation memory, provider streaming, new
 dependencies, or private Parley data. The SSE transport remains the existing
